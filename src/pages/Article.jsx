@@ -26,8 +26,9 @@ export default function Article() {
       .select('*')
       .eq('slug', slug)
       .eq('is_published', true)
-      .single()
-      .then(({ data }) => {
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) console.error(error)
         setPost(data)
         setLoading(false)
         if (data) {
