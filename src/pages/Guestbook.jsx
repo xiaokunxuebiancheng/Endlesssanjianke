@@ -6,9 +6,7 @@ const PAGE_SIZE = 10
 const MAX_LENGTH = 2000
 
 function stripHtml(str) {
-  const div = document.createElement('div')
-  div.textContent = str
-  return div.innerHTML
+  return str.replace(/<[^>]*>/g, '')
 }
 
 export default function Guestbook() {
