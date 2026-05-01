@@ -32,12 +32,10 @@ export default function Guestbook() {
     Promise.all([
       supabase
         .from('guestbook')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_approved', true),
+        .select('*', { count: 'exact', head: true }),
       supabase
         .from('guestbook')
         .select('id, content, guest_name, author_id, created_at')
-        .eq('is_approved', true)
         .order('created_at', { ascending: false })
         .range(from, from + PAGE_SIZE - 1),
     ]).then(([countRes, dataRes]) => {
@@ -55,11 +53,12 @@ export default function Guestbook() {
     setError('')
 
     const payload = user
-      ? { content: form.content.trim(), author_id: user.id }
+      ? { content: form.content.trim(), author_id: user.id, is_approved: true }
       : {
           content: form.content.trim(),
           guest_name: form.guest_name.trim() || '匿名',
           guest_email: form.guest_email.trim() || null,
+          is_approved: true,
         }
 
     const { error: err } = await supabase.from('guestbook').insert(payload)
@@ -122,7 +121,7 @@ export default function Guestbook() {
             {submitting ? '提交中...' : '发送留言'}
           </button>
           {error && <span className="text-xs text-red-400">{error}</span>}
-          {success && <span className="text-xs text-green-400">留言已提交，审核后可见</span>}
+          {success && <span className="text-xs text-green-400">留言成功</span>}
         </div>
       </form>
 
