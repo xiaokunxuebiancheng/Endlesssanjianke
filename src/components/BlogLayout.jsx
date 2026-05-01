@@ -46,6 +46,11 @@ export default function BlogLayout() {
               {l.label}
             </Link>
           ))}
+          {user && (
+            <Link to="/admin" className={`text-sm transition-colors ${location.pathname === '/admin' ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
+              管理
+            </Link>
+          )}
           {user ? (
             <div className="flex items-center gap-3">
               <span className="text-xs text-white/50">{user.email?.split('@')[0]}</span>
@@ -74,6 +79,9 @@ export default function BlogLayout() {
               {l.label}
             </Link>
           ))}
+          {user && (
+            <Link to="/admin" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">管理后台</Link>
+          )}
           {user ? (
             <button onClick={handleLogout} className="text-white/50 text-sm text-left">退出登录</button>
           ) : (

@@ -5,6 +5,7 @@ import Article from './pages/Article.jsx'
 import Links from './pages/Links.jsx'
 import Guestbook from './pages/Guestbook.jsx'
 import Login from './pages/Login.jsx'
+import Admin from './pages/Admin.jsx'
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="links" element={<Links />} />
           <Route path="guestbook" element={<Guestbook />} />
           <Route path="login" element={<Login />} />
+          <Route path="admin" element={<Admin />} />
         </Route>
       </Routes>
     </>
