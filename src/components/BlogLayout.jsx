@@ -5,7 +5,6 @@ import { Menu, X, User, LogOut, LogIn } from 'lucide-react'
 
 const navLinks = [
   { to: '/', label: '首页' },
-  { to: '/links', label: '友链' },
   { to: '/guestbook', label: '留言板' },
 ]
 

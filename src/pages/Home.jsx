@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { MessageSquare, Link2 } from 'lucide-react'
+import { MessageSquare } from 'lucide-react'
 
 export default function Home() {
   return (
@@ -10,28 +10,16 @@ export default function Home() {
         欢迎来到我的个人空间
       </p>
 
-      <div className="flex items-center gap-4">
-        <Link
-          to="/guestbook"
-          className="liquid-glass rounded-2xl px-8 py-4 flex items-center gap-3 text-white hover:bg-white/[0.06] transition-colors"
-        >
-          <MessageSquare size={20} />
-          <div className="text-left">
-            <div className="text-sm font-medium">留言板</div>
-            <div className="text-[10px] text-white/30">留下你的足迹</div>
-          </div>
-        </Link>
-        <Link
-          to="/links"
-          className="liquid-glass rounded-2xl px-8 py-4 flex items-center gap-3 text-white hover:bg-white/[0.06] transition-colors"
-        >
-          <Link2 size={20} />
-          <div className="text-left">
-            <div className="text-sm font-medium">友链</div>
-            <div className="text-[10px] text-white/30">友情链接</div>
-          </div>
-        </Link>
-      </div>
+      <Link
+        to="/guestbook"
+        className="liquid-glass rounded-2xl px-8 py-4 flex items-center gap-3 text-white hover:bg-white/[0.06] transition-colors"
+      >
+        <MessageSquare size={20} />
+        <div className="text-left">
+          <div className="text-sm font-medium">留言板</div>
+          <div className="text-[10px] text-white/30">留下你的足迹</div>
+        </div>
+      </Link>
     </div>
   )
 }
