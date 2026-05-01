@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { Send, User, Mail, CornerDownRight, X } from 'lucide-react'
+import ProfileCard from '../components/ProfileCard.jsx'
 
 const PAGE_SIZE = 10
 const MAX_LENGTH = 2000
@@ -128,12 +129,19 @@ export default function Guestbook() {
   }
 
   return (
-    <div className="py-12">
-      <h1 className="text-3xl font-bold text-white mb-2">留言板</h1>
-      <p className="text-sm text-white/40 mb-10">留下你的足迹</p>
+    <div className="py-12 flex gap-8">
+      {/* Sidebar */}
+      <aside className="hidden md:block w-64 shrink-0">
+        <ProfileCard />
+      </aside>
 
-      {/* Main form */}
-      <form onSubmit={handleSubmit} className="liquid-glass rounded-2xl p-6 mb-10">
+      {/* Main */}
+      <div className="flex-1 min-w-0">
+        <h1 className="text-3xl font-bold text-white mb-2">留言板</h1>
+        <p className="text-sm text-white/40 mb-10">留下你的足迹</p>
+
+        {/* Main form */}
+        <form onSubmit={handleSubmit} className="liquid-glass rounded-2xl p-6 mb-10">
         <input ref={honeypotRef} type="text" name="website" tabIndex={-1} autoComplete="off"
           style={{ position: 'absolute', left: '-9999px', opacity: 0 }} aria-hidden="true" />
 
@@ -226,6 +234,7 @@ export default function Guestbook() {
           </button>
         </div>
       )}
+      </div>
     </div>
   )
 }
