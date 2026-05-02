@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { Menu, X, LogOut, LogIn } from 'lucide-react'
+import MusicPlayer from './MusicPlayer.jsx'
 
 const navLinks = [
   { to: '/', label: '首页' },
@@ -46,6 +47,7 @@ export default function BlogLayout() {
               {l.label}
             </Link>
           ))}
+          <MusicPlayer />
           {user ? (
             <div className="flex items-center gap-3">
               <span className="text-xs text-white/50">{user.email?.split('@')[0]}</span>

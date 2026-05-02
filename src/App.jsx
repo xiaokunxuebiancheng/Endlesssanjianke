@@ -5,7 +5,6 @@ import Home from './pages/Home.jsx'
 import Guestbook from './pages/Guestbook.jsx'
 import About from './pages/About.jsx'
 import Login from './pages/Login.jsx'
-import MusicPlayer from './components/MusicPlayer.jsx'
 
 export default function App() {
   return (
@@ -28,8 +27,6 @@ export default function App() {
           <Route path="login" element={<Login />} />
         </Route>
       </Routes>
-
-      <MusicPlayer />
     </>
   )
 }

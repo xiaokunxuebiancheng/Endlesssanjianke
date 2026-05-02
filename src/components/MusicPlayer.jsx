@@ -37,9 +37,9 @@ export default function MusicPlayer() {
       <button
         onClick={toggle}
         title={playing ? '暂停音乐' : '播放音乐'}
-        className="fixed bottom-6 right-6 z-50 p-3 rounded-full liquid-glass text-white/60 hover:text-white transition-colors"
+        className="p-2 rounded-lg text-white/50 hover:text-white transition-colors"
       >
-        {playing ? <Volume2 size={18} /> : <VolumeX size={18} />}
+        {playing ? <Volume2 size={16} /> : <VolumeX size={16} />}
       </button>
     </>
   )
