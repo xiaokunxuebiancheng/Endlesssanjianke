@@ -34,40 +34,40 @@ export default function Login() {
   return (
     <div className="py-20 flex items-center justify-center">
       <div className="liquid-glass rounded-3xl p-8 w-full max-w-md">
-        <h1 className="text-2xl font-bold text-gray-900 text-center mb-2">
+        <h1 className="text-2xl font-bold text-white text-center mb-2">
           {isSignUp ? '注册' : '登录'}
         </h1>
-        <p className="text-sm text-gray-400 text-center mb-8">
+        <p className="text-sm text-white/40 text-center mb-8">
           {isSignUp ? '创建账号加入博客' : '登录以管理博客'}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-black/[0.03] border border-black/[0.06]">
-            <Mail size={16} className="text-gray-400 shrink-0" />
+          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+            <Mail size={16} className="text-white/30 shrink-0" />
             <input
               type="email"
               placeholder="邮箱"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-300 outline-none"
+              className="w-full bg-transparent text-sm text-white placeholder:text-white/20 outline-none"
               required
             />
           </div>
-          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-black/[0.03] border border-black/[0.06]">
-            <Lock size={16} className="text-gray-400 shrink-0" />
+          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+            <Lock size={16} className="text-white/30 shrink-0" />
             <input
               type="password"
               placeholder="密码"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-300 outline-none"
+              className="w-full bg-transparent text-sm text-white placeholder:text-white/20 outline-none"
               required
               minLength={6}
             />
           </div>
 
           {error && (
-            <p className={`text-xs ${error.includes('成功') ? 'text-green-600' : 'text-red-500'}`}>
+            <p className={`text-xs ${error.includes('成功') ? 'text-green-400' : 'text-red-400'}`}>
               {error}
             </p>
           )}
@@ -75,18 +75,18 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl bg-black/5 text-gray-700 text-sm font-medium hover:bg-black/10 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-white/10 text-white text-sm font-medium hover:bg-white/20 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
             {isSignUp ? '注册' : '登录'}
           </button>
         </form>
 
-        <p className="text-xs text-gray-400 text-center mt-6">
+        <p className="text-xs text-white/30 text-center mt-6">
           {isSignUp ? '已有账号？' : '没有账号？'}
           <button
             onClick={() => { setIsSignUp(!isSignUp); setError('') }}
-            className="text-gray-600 hover:text-gray-900 ml-1 transition-colors"
+            className="text-white/60 hover:text-white ml-1 transition-colors"
           >
             {isSignUp ? '去登录' : '去注册'}
           </button>
