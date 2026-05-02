@@ -139,18 +139,18 @@ export default function Gallery() {
               </div>
             )}
 
-            {/* Left Arrow — always visible */}
+            {/* Left Arrow — on the edge of the main image */}
             {images.length > 1 && (
               <button onClick={prev}
-                className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full liquid-glass text-white hover:text-white transition-colors">
+                className="absolute left-[14%] top-1/2 -translate-y-1/2 z-20 p-3 rounded-full liquid-glass text-white hover:text-white transition-colors">
                 <ChevronLeft size={22} />
               </button>
             )}
 
-            {/* Right Arrow — always visible */}
+            {/* Right Arrow — on the edge of the main image */}
             {images.length > 1 && (
               <button onClick={next}
-                className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full liquid-glass text-white hover:text-white transition-colors">
+                className="absolute right-[14%] top-1/2 -translate-y-1/2 z-20 p-3 rounded-full liquid-glass text-white hover:text-white transition-colors">
                 <ChevronRight size={22} />
               </button>
             )}
