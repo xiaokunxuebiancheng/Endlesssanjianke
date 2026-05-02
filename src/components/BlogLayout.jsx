@@ -48,6 +48,12 @@ export default function BlogLayout() {
               {l.label}
             </Link>
           ))}
+          {user?.email === '1375937000@qq.com' && (
+            <Link to="/admin/users"
+              className={`text-sm transition-colors ${location.pathname.startsWith('/admin') ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
+              管理
+            </Link>
+          )}
           <MusicPlayer />
           {user ? (
             <div className="flex items-center gap-3">
@@ -77,6 +83,9 @@ export default function BlogLayout() {
               {l.label}
             </Link>
           ))}
+          {user?.email === '1375937000@qq.com' && (
+            <Link to="/admin/users" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">用户管理</Link>
+          )}
           {user ? (
             <button onClick={handleLogout} className="text-white/50 text-sm text-left">退出登录</button>
           ) : (
