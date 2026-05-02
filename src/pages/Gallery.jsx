@@ -95,7 +95,7 @@ export default function Gallery() {
             {/* Prev peek */}
             {images.length > 1 && (
               <div
-                className="absolute left-0 w-[15%] h-full opacity-40 blur-[2px] cursor-pointer z-0"
+                className="absolute left-0 w-[15%] h-[80%] rounded-2xl overflow-hidden opacity-30 blur-[1px] cursor-pointer z-0 border border-white/[0.06]"
                 onClick={prev}
               >
                 <img
@@ -107,16 +107,18 @@ export default function Gallery() {
             )}
 
             {/* Current */}
-            <div className="relative z-10 mx-auto w-[70%] h-full transition-all duration-500 ease-out">
-              <img
-                src={getUrl(images[current].name)}
-                alt=""
-                className="w-full h-full object-contain"
-              />
+            <div className="relative z-10 mx-auto w-[68%] h-[90%] transition-all duration-500 ease-out">
+              <div className="liquid-glass rounded-3xl p-2 w-full h-full">
+                <img
+                  src={getUrl(images[current].name)}
+                  alt=""
+                  className="w-full h-full object-contain rounded-2xl"
+                />
+              </div>
               {isAdmin && (
                 <button
                   onClick={() => handleDelete(images[current].name)}
-                  className="absolute top-3 right-3 p-2.5 rounded-xl bg-black/30 text-white/40 hover:text-red-400 hover:bg-black/50 transition-all"
+                  className="absolute top-5 right-5 p-2.5 rounded-xl bg-black/30 text-white/40 hover:text-red-400 hover:bg-black/50 transition-all z-30"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -126,7 +128,7 @@ export default function Gallery() {
             {/* Next peek */}
             {images.length > 1 && (
               <div
-                className="absolute right-0 w-[15%] h-full opacity-40 blur-[2px] cursor-pointer z-0"
+                className="absolute right-0 w-[15%] h-[80%] rounded-2xl overflow-hidden opacity-30 blur-[1px] cursor-pointer z-0 border border-white/[0.06]"
                 onClick={next}
               >
                 <img
@@ -137,18 +139,18 @@ export default function Gallery() {
               </div>
             )}
 
-            {/* Left Arrow */}
+            {/* Left Arrow — always visible */}
             {images.length > 1 && (
               <button onClick={prev}
-                className="absolute left-[16%] top-1/2 -translate-y-1/2 z-20 p-3 rounded-full liquid-glass text-white hover:text-white transition-colors">
+                className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full liquid-glass text-white hover:text-white transition-colors">
                 <ChevronLeft size={22} />
               </button>
             )}
 
-            {/* Right Arrow */}
+            {/* Right Arrow — always visible */}
             {images.length > 1 && (
               <button onClick={next}
-                className="absolute right-[16%] top-1/2 -translate-y-1/2 z-20 p-3 rounded-full liquid-glass text-white hover:text-white transition-colors">
+                className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full liquid-glass text-white hover:text-white transition-colors">
                 <ChevronRight size={22} />
               </button>
             )}
