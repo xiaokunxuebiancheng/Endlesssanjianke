@@ -4,6 +4,7 @@ import Home from './pages/Home.jsx'
 
 import Guestbook from './pages/Guestbook.jsx'
 import About from './pages/About.jsx'
+import Gallery from './pages/Gallery.jsx'
 import Login from './pages/Login.jsx'
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
 
           <Route path="guestbook" element={<Guestbook />} />
           <Route path="about" element={<About />} />
+          <Route path="gallery" element={<Gallery />} />
           <Route path="login" element={<Login />} />
         </Route>
       </Routes>

@@ -7,6 +7,7 @@ import MusicPlayer from './MusicPlayer.jsx'
 const navLinks = [
   { to: '/', label: '首页' },
   { to: '/about', label: '关于' },
+  { to: '/gallery', label: '画廊' },
   { to: '/guestbook', label: '留言板' },
 ]
 
