@@ -9,7 +9,6 @@ export default function Gallery() {
   const [uploading, setUploading] = useState(false)
   const [current, setCurrent] = useState(0)
   const fileRef = useRef(null)
-
   const isAdmin = user?.email === '1375937000@qq.com'
 
   useEffect(() => {
@@ -28,7 +27,6 @@ export default function Gallery() {
   const handleUpload = async (e) => {
     const files = e.target.files
     if (!files?.length) return
-
     setUploading(true)
     for (const file of files) {
       const name = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -50,10 +48,9 @@ export default function Gallery() {
     return data.publicUrl
   }
 
-  const prev = () => setCurrent(c => Math.max(0, c - 1))
-  const next = () => setCurrent(c => Math.min(images.length - 1, c + 1))
+  const prev = () => setCurrent(c => (c === 0 ? images.length - 1 : c - 1))
+  const next = () => setCurrent(c => (c === images.length - 1 ? 0 : c + 1))
 
-  // Keyboard nav
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'ArrowLeft') prev()
@@ -61,7 +58,12 @@ export default function Gallery() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [images.length])
+  }, [images.length, current])
+
+  const getPreview = (offset) => {
+    const idx = (current + offset + images.length) % images.length
+    return images[idx]
+  }
 
   return (
     <div className="py-12">
@@ -88,58 +90,85 @@ export default function Gallery() {
         </div>
       ) : (
         <div className="relative">
-          {/* Carousel */}
-          <div className="overflow-hidden rounded-3xl">
-            <div
-              className="flex transition-transform duration-500 ease-out"
-              style={{ transform: `translateX(-${current * 100}%)` }}
-            >
-              {images.map(img => (
-                <div key={img.name} className="w-full shrink-0 relative">
-                  <img
-                    src={getUrl(img.name)}
-                    alt=""
-                    className="w-full h-[65vh] object-contain bg-black/20"
-                  />
-                  {isAdmin && (
-                    <button
-                      onClick={() => handleDelete(img.name)}
-                      className="absolute top-3 right-3 p-2.5 rounded-xl bg-black/30 text-white/40 hover:text-red-400 hover:bg-black/50 transition-all"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
-              ))}
+          {/* Main carousel — peek effect */}
+          <div className="relative overflow-hidden rounded-3xl h-[60vh] flex items-center">
+            {/* Prev peek */}
+            {images.length > 1 && (
+              <div
+                className="absolute left-0 w-[15%] h-full opacity-40 blur-[2px] cursor-pointer z-0"
+                onClick={prev}
+              >
+                <img
+                  src={getUrl(getPreview(-1).name)}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+
+            {/* Current */}
+            <div className="relative z-10 mx-auto w-[70%] h-full transition-all duration-500 ease-out">
+              <img
+                src={getUrl(images[current].name)}
+                alt=""
+                className="w-full h-full object-contain"
+              />
+              {isAdmin && (
+                <button
+                  onClick={() => handleDelete(images[current].name)}
+                  className="absolute top-3 right-3 p-2.5 rounded-xl bg-black/30 text-white/40 hover:text-red-400 hover:bg-black/50 transition-all"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
             </div>
+
+            {/* Next peek */}
+            {images.length > 1 && (
+              <div
+                className="absolute right-0 w-[15%] h-full opacity-40 blur-[2px] cursor-pointer z-0"
+                onClick={next}
+              >
+                <img
+                  src={getUrl(getPreview(1).name)}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+
+            {/* Left Arrow */}
+            {images.length > 1 && (
+              <button onClick={prev}
+                className="absolute left-[16%] top-1/2 -translate-y-1/2 z-20 p-3 rounded-full liquid-glass text-white hover:text-white transition-colors">
+                <ChevronLeft size={22} />
+              </button>
+            )}
+
+            {/* Right Arrow */}
+            {images.length > 1 && (
+              <button onClick={next}
+                className="absolute right-[16%] top-1/2 -translate-y-1/2 z-20 p-3 rounded-full liquid-glass text-white hover:text-white transition-colors">
+                <ChevronRight size={22} />
+              </button>
+            )}
           </div>
 
-          {/* Arrows */}
+          {/* Bottom thumbnails */}
           {images.length > 1 && (
-            <>
-              {current > 0 && (
-                <button onClick={prev}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 p-3 rounded-full liquid-glass text-white/80 hover:text-white transition-colors">
-                  <ChevronLeft size={24} />
+            <div className="flex items-center justify-center gap-3 mt-6">
+              {images.map((img, i) => (
+                <button
+                  key={img.name}
+                  onClick={() => setCurrent(i)}
+                  className={`shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${
+                    i === current
+                      ? 'border-white scale-110'
+                      : 'border-transparent opacity-40 hover:opacity-70'
+                  }`}
+                >
+                  <img src={getUrl(img.name)} alt="" className="w-full h-full object-cover" />
                 </button>
-              )}
-              {current < images.length - 1 && (
-                <button onClick={next}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-full liquid-glass text-white/80 hover:text-white transition-colors">
-                  <ChevronRight size={24} />
-                </button>
-              )}
-            </>
-          )}
-
-          {/* Dots */}
-          {images.length > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6">
-              {images.map((_, i) => (
-                <button key={i} onClick={() => setCurrent(i)}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    i === current ? 'bg-white' : 'bg-white/20 hover:bg-white/40'
-                  }`} />
               ))}
             </div>
           )}
