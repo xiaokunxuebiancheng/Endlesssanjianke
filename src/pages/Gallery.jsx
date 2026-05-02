@@ -70,7 +70,14 @@ export default function Gallery() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-white">画廊</h1>
         {isAdmin && (
-          <div>
+          <div className="flex items-center gap-3">
+            {images.length > 0 && (
+              <button onClick={() => handleDelete(images[current].name)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-500/70 text-white text-sm hover:bg-red-600 transition-colors">
+                <Trash2 size={16} />
+                删除当前图片
+              </button>
+            )}
             <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleUpload} className="hidden" />
             <button onClick={() => fileRef.current?.click()} disabled={uploading}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 disabled:opacity-50 transition-colors">
@@ -108,22 +115,12 @@ export default function Gallery() {
 
             {/* Current */}
             <div className="relative z-10 mx-auto flex items-center justify-center transition-all duration-500 ease-out max-w-[68%] max-h-[80vh]">
-              <div className="relative inline-block group/image">
-                <div className="liquid-glass rounded-3xl p-2">
-                  <img
-                    src={getUrl(images[current].name)}
-                    alt=""
-                    className="max-w-[65vw] max-h-[75vh] w-auto h-auto object-contain rounded-2xl block"
-                  />
-                </div>
-                {isAdmin && (
-                  <button
-                    onClick={() => handleDelete(images[current].name)}
-                    className="absolute top-5 right-5 p-2.5 rounded-xl bg-red-500/70 text-white hover:bg-red-600 transition-all z-30"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
+              <div className="liquid-glass rounded-3xl p-2 inline-block">
+                <img
+                  src={getUrl(images[current].name)}
+                  alt=""
+                  className="max-w-[65vw] max-h-[75vh] w-auto h-auto object-contain rounded-2xl"
+                />
               </div>
             </div>
 
