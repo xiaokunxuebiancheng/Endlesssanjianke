@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { Upload, X, Trash2, Image } from 'lucide-react'
+import { Upload, X, Trash2, Image, ChevronLeft, ChevronRight } from 'lucide-react'
 
 export default function Gallery() {
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState(null)
   const [uploading, setUploading] = useState(false)
-  const [lightbox, setLightbox] = useState(null)
+  const [lightboxIdx, setLightboxIdx] = useState(-1)
   const fileRef = useRef(null)
 
   const isAdmin = user?.email === '1375937000@qq.com'
@@ -86,7 +86,7 @@ export default function Gallery() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {images.map(img => (
             <div key={img.name} className="group relative liquid-glass rounded-2xl overflow-hidden aspect-square cursor-pointer"
-              onClick={() => setLightbox(img.name)}>
+              onClick={() => setLightboxIdx(i)}>
               <img
                 src={getUrl(img.name)}
                 alt=""
@@ -107,18 +107,49 @@ export default function Gallery() {
       )}
 
       {/* Lightbox */}
-      {lightbox && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setLightbox(null)}>
-          <button className="absolute top-4 right-4 p-2 text-white/60 hover:text-white">
+      {lightboxIdx >= 0 && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onKeyDown={e => {
+            if (e.key === 'Escape') setLightboxIdx(-1)
+            if (e.key === 'ArrowLeft') setLightboxIdx(i => Math.max(0, i - 1))
+            if (e.key === 'ArrowRight') setLightboxIdx(i => Math.min(images.length - 1, i + 1))
+          }}
+          tabIndex={0}>
+
+          {/* Close */}
+          <button onClick={() => setLightboxIdx(-1)}
+            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/40 text-white/60 hover:text-white transition-colors">
             <X size={24} />
           </button>
+
+          {/* Counter */}
+          <span className="absolute top-4 left-4 z-10 px-3 py-1.5 rounded-full bg-black/40 text-white/60 text-xs">
+            {lightboxIdx + 1} / {images.length}
+          </span>
+
+          {/* Prev */}
+          {lightboxIdx > 0 && (
+            <button onClick={e => { e.stopPropagation(); setLightboxIdx(i => i - 1) }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-black/40 text-white/60 hover:text-white hover:bg-black/60 transition-colors">
+              <ChevronLeft size={28} />
+            </button>
+          )}
+
+          {/* Image */}
           <img
-            src={getUrl(lightbox)}
+            src={getUrl(images[lightboxIdx].name)}
             alt=""
-            className="max-w-full max-h-[90vh] object-contain rounded-xl"
+            className="max-w-full max-h-[90vh] object-contain rounded-xl select-none"
             onClick={e => e.stopPropagation()}
           />
+
+          {/* Next */}
+          {lightboxIdx < images.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); setLightboxIdx(i => i + 1) }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-black/40 text-white/60 hover:text-white hover:bg-black/60 transition-colors">
+              <ChevronRight size={28} />
+            </button>
+          )}
         </div>
       )}
     </div>
