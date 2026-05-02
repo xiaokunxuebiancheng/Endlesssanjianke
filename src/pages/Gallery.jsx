@@ -107,12 +107,12 @@ export default function Gallery() {
             )}
 
             {/* Current */}
-            <div className="relative z-10 mx-auto w-[68%] h-[90%] transition-all duration-500 ease-out">
-              <div className="liquid-glass rounded-3xl p-2 w-full h-full">
+            <div className="relative z-10 mx-auto flex items-center justify-center transition-all duration-500 ease-out max-w-[68%] max-h-[80vh]">
+              <div className="liquid-glass rounded-3xl p-2 inline-block">
                 <img
                   src={getUrl(images[current].name)}
                   alt=""
-                  className="w-full h-full object-contain rounded-2xl"
+                  className="max-w-[65vw] max-h-[75vh] w-auto h-auto object-contain rounded-2xl"
                 />
               </div>
               {isAdmin && (
