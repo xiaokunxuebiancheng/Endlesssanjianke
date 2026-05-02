@@ -14,6 +14,7 @@ const navLinks = [
 export default function BlogLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [user, setUser] = useState(null)
+  const [visitCount, setVisitCount] = useState(null)
   const location = useLocation()
 
   useEffect(() => {
@@ -22,6 +23,22 @@ export default function BlogLayout() {
       setUser(session?.user ?? null)
     })
     return () => listener.subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    const key = `visit_counted_${today}`
+
+    supabase.from('site_stats').select('count').eq('key', 'visits').single().then(({ data }) => {
+      if (data) setVisitCount(data.count)
+    })
+
+    if (!localStorage.getItem(key)) {
+      supabase.rpc('increment_site_visits').then(({ data }) => {
+        if (data != null) setVisitCount(data)
+        localStorage.setItem(key, '1')
+      })
+    }
   }, [])
 
   const handleLogout = async () => {
@@ -97,6 +114,12 @@ export default function BlogLayout() {
       <main className="flex-1">
         <Outlet />
       </main>
+
+      <footer className="py-8 text-center">
+        <span className="text-xs text-white/20">
+          共 {visitCount != null ? visitCount.toLocaleString() : '...'} 次访问
+        </span>
+      </footer>
     </div>
   )
 }
