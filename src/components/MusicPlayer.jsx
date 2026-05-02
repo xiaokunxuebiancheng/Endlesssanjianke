@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Volume2, VolumeX } from 'lucide-react'
 
-// 替换为你的音乐 URL
-const MUSIC_URL = ''
+const MUSIC_URL = '/music.mp3'
 
 export default function MusicPlayer() {
   const [playing, setPlaying] = useState(false)
