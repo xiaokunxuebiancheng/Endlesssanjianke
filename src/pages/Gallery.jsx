@@ -75,7 +75,7 @@ export default function Gallery() {
               <button onClick={() => handleDelete(images[current].name)}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors">
                 <Trash2 size={16} />
-                删除当前图片
+                删除
               </button>
             )}
             <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleUpload} className="hidden" />
