@@ -108,21 +108,23 @@ export default function Gallery() {
 
             {/* Current */}
             <div className="relative z-10 mx-auto flex items-center justify-center transition-all duration-500 ease-out max-w-[68%] max-h-[80vh]">
-              <div className="liquid-glass rounded-3xl p-2 inline-block">
-                <img
-                  src={getUrl(images[current].name)}
-                  alt=""
-                  className="max-w-[65vw] max-h-[75vh] w-auto h-auto object-contain rounded-2xl"
-                />
+              <div className="relative inline-block group/image">
+                <div className="liquid-glass rounded-3xl p-2">
+                  <img
+                    src={getUrl(images[current].name)}
+                    alt=""
+                    className="max-w-[65vw] max-h-[75vh] w-auto h-auto object-contain rounded-2xl block"
+                  />
+                </div>
+                {isAdmin && (
+                  <button
+                    onClick={() => handleDelete(images[current].name)}
+                    className="absolute top-5 right-5 p-2.5 rounded-xl bg-red-500/70 text-white hover:bg-red-600 transition-all z-30"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
-              {isAdmin && (
-                <button
-                  onClick={() => handleDelete(images[current].name)}
-                  className="absolute top-5 right-5 p-2.5 rounded-xl bg-black/30 text-white/40 hover:text-red-400 hover:bg-black/50 transition-all z-30"
-                >
-                  <Trash2 size={16} />
-                </button>
-              )}
             </div>
 
             {/* Next peek */}
