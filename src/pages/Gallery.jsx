@@ -73,7 +73,7 @@ export default function Gallery() {
           <div className="flex items-center gap-3">
             {images.length > 0 && (
               <button onClick={() => handleDelete(images[current].name)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-500/70 text-white text-sm hover:bg-red-600 transition-colors">
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors">
                 <Trash2 size={16} />
                 删除当前图片
               </button>
