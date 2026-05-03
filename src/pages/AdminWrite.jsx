@@ -41,33 +41,41 @@ export default function AdminWrite() {
 
   const handleSave = async (publish) => {
     setSaving(true)
+    setError('')
     const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean)
     const slug = title
       .replace(/[^a-zA-Z0-9一-鿿]+/g, '-')
       .replace(/^-|-$/g, '')
       .toLowerCase() || Date.now().toString(36)
 
-    const { data: { session } } = await supabase.auth.getSession()
+    const finalSlug = editSlug || slug
+    const payload = {
+      title,
+      slug: finalSlug,
+      content,
+      excerpt,
+      tags: tagArray,
+      cover_url: coverUrl || null,
+      is_published: publish,
+    }
 
-    const { data: result, error: rpcError } = await supabase.rpc('upsert_post', {
-      p_title: title,
-      p_slug: editSlug || slug,
-      p_content: content,
-      p_excerpt: excerpt,
-      p_tags: tagArray,
-      p_cover_url: coverUrl || null,
-      p_is_published: publish,
-      p_author_id: session.user.id,
-    })
-
-    if (rpcError) {
-      setError(rpcError.message)
+    try {
+      if (editSlug) {
+        const { error: updateError } = await supabase.from('posts').update(payload).eq('slug', editSlug)
+        if (updateError) { setError(updateError.message); setSaving(false); return }
+      } else {
+        const { data: { session } } = await supabase.auth.getSession()
+        const { error: insertError } = await supabase.from('posts').insert({ ...payload, author_id: session.user.id })
+        if (insertError) { setError(insertError.message); setSaving(false); return }
+      }
+    } catch (e) {
+      setError(e.message || '保存失败')
       setSaving(false)
       return
     }
 
     setSaving(false)
-    if (publish) navigate(`/blog/${result.slug}`)
+    if (publish) navigate(`/blog/${finalSlug}`)
   }
 
   if (checking) return <div className="py-12 text-white/40 text-sm">加载中...</div>
