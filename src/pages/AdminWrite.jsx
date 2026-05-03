@@ -10,6 +10,7 @@ export default function AdminWrite() {
   const [tags, setTags] = useState('')
   const [coverUrl, setCoverUrl] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
   const [checking, setChecking] = useState(true)
   const [searchParams] = useSearchParams()
@@ -58,14 +59,21 @@ export default function AdminWrite() {
       author_id: session.user.id,
     }
 
+    let result
     if (editSlug) {
-      await supabase.from('posts').update(payload).eq('slug', editSlug)
+      result = await supabase.from('posts').update(payload).eq('slug', editSlug)
     } else {
-      await supabase.from('posts').insert(payload)
+      result = await supabase.from('posts').insert(payload).select('slug').single()
+    }
+
+    if (result.error) {
+      setError(result.error.message)
+      setSaving(false)
+      return
     }
 
     setSaving(false)
-    if (publish) navigate(`/blog/${editSlug || slug}`)
+    if (publish) navigate(`/blog/${editSlug || result.data?.slug || slug}`)
   }
 
   if (checking) return <div className="py-12 text-white/40 text-sm">加载中...</div>
@@ -149,6 +157,12 @@ export default function AdminWrite() {
           发布
         </button>
       </div>
+
+      {error && (
+        <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+          {error}
+        </div>
+      )}
     </div>
   )
 }
