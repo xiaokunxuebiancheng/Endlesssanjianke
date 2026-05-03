@@ -7,6 +7,7 @@ import MusicPlayer from './MusicPlayer.jsx'
 const navLinks = [
   { to: '/', label: '首页' },
   { to: '/about', label: '关于' },
+  { to: '/blog', label: '博客' },
   { to: '/gallery', label: '画廊' },
   { to: '/guestbook', label: '留言板' },
 ]
@@ -66,10 +67,16 @@ export default function BlogLayout() {
             </Link>
           ))}
           {user?.email === '1375937000@qq.com' && (
-            <Link to="/admin/users"
-              className={`text-sm transition-colors ${location.pathname.startsWith('/admin') ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
-              管理
-            </Link>
+            <>
+              <Link to="/admin/write"
+                className={`text-sm transition-colors ${location.pathname === '/admin/write' ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
+                写文章
+              </Link>
+              <Link to="/admin/users"
+                className={`text-sm transition-colors ${location.pathname.startsWith('/admin') && location.pathname !== '/admin/write' ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
+                管理
+              </Link>
+            </>
           )}
           <MusicPlayer />
           {user ? (
@@ -101,7 +108,10 @@ export default function BlogLayout() {
             </Link>
           ))}
           {user?.email === '1375937000@qq.com' && (
-            <Link to="/admin/users" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">用户管理</Link>
+            <>
+              <Link to="/admin/write" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">写文章</Link>
+              <Link to="/admin/users" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">用户管理</Link>
+            </>
           )}
           {user ? (
             <button onClick={handleLogout} className="text-white/50 text-sm text-left">退出登录</button>

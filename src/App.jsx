@@ -5,6 +5,9 @@ import Home from './pages/Home.jsx'
 import Guestbook from './pages/Guestbook.jsx'
 import About from './pages/About.jsx'
 import Gallery from './pages/Gallery.jsx'
+import BlogList from './pages/BlogList.jsx'
+import BlogPost from './pages/BlogPost.jsx'
+import AdminWrite from './pages/AdminWrite.jsx'
 import AdminUsers from './pages/AdminUsers.jsx'
 import Login from './pages/Login.jsx'
 
@@ -27,6 +30,9 @@ export default function App() {
           <Route path="guestbook" element={<Guestbook />} />
           <Route path="about" element={<About />} />
           <Route path="gallery" element={<Gallery />} />
+          <Route path="blog" element={<BlogList />} />
+          <Route path="blog/:slug" element={<BlogPost />} />
+          <Route path="admin/write" element={<AdminWrite />} />
           <Route path="admin/users" element={<AdminUsers />} />
           <Route path="login" element={<Login />} />
         </Route>
