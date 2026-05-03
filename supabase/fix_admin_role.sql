@@ -25,3 +25,50 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 3. 创建 upsert_posts 函数（绕过 RLS，仅 admin 可调用）
+CREATE OR REPLACE FUNCTION upsert_post(
+  p_title TEXT,
+  p_slug TEXT,
+  p_content TEXT,
+  p_excerpt TEXT DEFAULT NULL,
+  p_tags TEXT[] DEFAULT '{}',
+  p_cover_url TEXT DEFAULT NULL,
+  p_is_published BOOLEAN DEFAULT false,
+  p_author_id UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_existing_id BIGINT;
+  v_result JSONB;
+BEGIN
+  -- 仅管理员可调用
+  IF NOT EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin') THEN
+    RAISE EXCEPTION 'permission denied';
+  END IF;
+
+  SELECT id INTO v_existing_id FROM posts WHERE slug = p_slug;
+
+  IF v_existing_id IS NOT NULL THEN
+    UPDATE posts SET
+      title = p_title,
+      content = p_content,
+      excerpt = p_excerpt,
+      tags = p_tags,
+      cover_url = p_cover_url,
+      is_published = p_is_published,
+      updated_at = now()
+    WHERE id = v_existing_id
+    RETURNING to_jsonb(posts.*) INTO v_result;
+  ELSE
+    INSERT INTO posts (title, slug, content, excerpt, tags, cover_url, is_published, author_id)
+    VALUES (p_title, p_slug, p_content, p_excerpt, p_tags, p_cover_url, p_is_published, p_author_id)
+    RETURNING to_jsonb(posts.*) INTO v_result;
+  END IF;
+
+  RETURN v_result;
+END;
+$$;

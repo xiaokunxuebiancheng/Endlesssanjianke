@@ -48,32 +48,26 @@ export default function AdminWrite() {
       .toLowerCase() || Date.now().toString(36)
 
     const { data: { session } } = await supabase.auth.getSession()
-    const payload = {
-      title,
-      slug: editSlug || slug,
-      content,
-      excerpt,
-      tags: tagArray,
-      cover_url: coverUrl || null,
-      is_published: publish,
-      author_id: session.user.id,
-    }
 
-    let result
-    if (editSlug) {
-      result = await supabase.from('posts').update(payload).eq('slug', editSlug)
-    } else {
-      result = await supabase.from('posts').insert(payload).select('slug').single()
-    }
+    const { data: result, error: rpcError } = await supabase.rpc('upsert_post', {
+      p_title: title,
+      p_slug: editSlug || slug,
+      p_content: content,
+      p_excerpt: excerpt,
+      p_tags: tagArray,
+      p_cover_url: coverUrl || null,
+      p_is_published: publish,
+      p_author_id: session.user.id,
+    })
 
-    if (result.error) {
-      setError(result.error.message)
+    if (rpcError) {
+      setError(rpcError.message)
       setSaving(false)
       return
     }
 
     setSaving(false)
-    if (publish) navigate(`/blog/${editSlug || result.data?.slug || slug}`)
+    if (publish) navigate(`/blog/${result.slug}`)
   }
 
   if (checking) return <div className="py-12 text-white/40 text-sm">加载中...</div>
