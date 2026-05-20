@@ -3,43 +3,52 @@ import { useEffect, useRef } from 'react'
 export default function BackgroundVideo({ src }) {
   const aRef = useRef(null)
   const bRef = useRef(null)
-  const currentRef = useRef('a')
 
   useEffect(() => {
     const a = aRef.current
     const b = bRef.current
     let current = a
     let standby = b
-    let swapping = false
+    let standbyPlaying = false
+    let stopped = false
 
     a.play()
 
-    const swap = () => {
-      if (swapping) return
-      swapping = true
-      current.style.opacity = '0'
-      standby.style.opacity = '1'
-      standby.currentTime = 0
-      standby.play()
-      const prev = current
-      current = standby
-      standby = prev
-      currentRef.current = current === a ? 'a' : 'b'
-      swapping = false
-    }
-
     const onTimeUpdate = () => {
-      const remaining = current.duration - current.currentTime
-      if (remaining < 1.2 && standby.paused) {
+      if (stopped) return
+      const r = current.duration - current.currentTime
+
+      // Start standby ~1.5s before current ends
+      if (r < 1.5 && standby.paused) {
         standby.currentTime = 0
         standby.play().catch(() => {})
+      }
+
+      // Confirm standby has actually started rendering frames
+      if (!standby.paused && standby.currentTime > 0.05) {
+        standbyPlaying = true
+      }
+
+      // When current is about to finish and standby is live, swap instantly
+      if (r < 0.15 && standbyPlaying) {
+        standbyPlaying = false
+        current.style.opacity = '0'
+        standby.style.opacity = '1'
+
+        // Prepare old current as next standby
+        current.pause()
+        current.currentTime = 0
+
+        const tmp = current
+        current = standby
+        standby = tmp
       }
     }
 
     const onEnded = () => {
-      if (!standby.paused) {
-        swap()
-      } else {
+      if (stopped) return
+      // Fallback: if standby somehow isn't playing, just reset current
+      if (!standbyPlaying) {
         current.currentTime = 0
         current.play().catch(() => {})
       }
@@ -51,6 +60,7 @@ export default function BackgroundVideo({ src }) {
     b.addEventListener('ended', onEnded)
 
     return () => {
+      stopped = true
       a.removeEventListener('timeupdate', onTimeUpdate)
       b.removeEventListener('timeupdate', onTimeUpdate)
       a.removeEventListener('ended', onEnded)
@@ -60,24 +70,12 @@ export default function BackgroundVideo({ src }) {
 
   return (
     <>
-      <video
-        ref={aRef}
-        muted
-        playsInline
-        preload="auto"
-        src={src}
+      <video ref={aRef} muted playsInline preload="auto" src={src}
         className="fixed inset-0 w-full h-full object-cover z-[0]"
-        style={{ opacity: 1 }}
-      />
-      <video
-        ref={bRef}
-        muted
-        playsInline
-        preload="auto"
-        src={src}
-        className="fixed inset-0 w-full h-full object-cover z-[0] transition-opacity duration-700"
-        style={{ opacity: 0 }}
-      />
+        style={{ opacity: 1 }} />
+      <video ref={bRef} muted playsInline preload="auto" src={src}
+        className="fixed inset-0 w-full h-full object-cover z-[0]"
+        style={{ opacity: 0 }} />
     </>
   )
 }
