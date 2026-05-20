@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { ADMIN_EMAIL } from '../lib/constants'
 import { Menu, X, LogOut, LogIn } from 'lucide-react'
 import MusicPlayer from './MusicPlayer.jsx'
 
@@ -15,11 +16,15 @@ const navLinks = [
 export default function BlogLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [user, setUser] = useState(null)
+  const [authReady, setAuthReady] = useState(false)
   const [visitCount, setVisitCount] = useState(null)
   const location = useLocation()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null))
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null)
+      setAuthReady(true)
+    })
     const { data: listener } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null)
     })
@@ -66,7 +71,7 @@ export default function BlogLayout() {
               {l.label}
             </Link>
           ))}
-          {user?.email === '1375937000@qq.com' && (
+          {authReady && user?.email === ADMIN_EMAIL && (
             <>
               <Link to="/admin/write"
                 className={`text-sm transition-colors ${location.pathname === '/admin/write' ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
@@ -79,18 +84,20 @@ export default function BlogLayout() {
             </>
           )}
           <MusicPlayer />
-          {user ? (
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-white/50">{user.email?.split('@')[0]}</span>
-              <button onClick={handleLogout} className="text-white/50 hover:text-white transition-colors" title="退出">
-                <LogOut size={16} />
-              </button>
-            </div>
-          ) : (
-            <Link to="/login" className="text-white/60 hover:text-white transition-colors" title="登录">
-              <LogIn size={16} />
-            </Link>
-          )}
+          {authReady ? (
+            user ? (
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-white/50">{user.email?.split('@')[0]}</span>
+                <button onClick={handleLogout} className="text-white/50 hover:text-white transition-colors" title="退出">
+                  <LogOut size={16} />
+                </button>
+              </div>
+            ) : (
+              <Link to="/login" className="text-white/60 hover:text-white transition-colors" title="登录">
+                <LogIn size={16} />
+              </Link>
+            )
+          ) : null}
         </div>
 
         {/* Mobile toggle */}
@@ -107,17 +114,19 @@ export default function BlogLayout() {
               {l.label}
             </Link>
           ))}
-          {user?.email === '1375937000@qq.com' && (
+          {authReady && user?.email === ADMIN_EMAIL && (
             <>
               <Link to="/admin/write" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">写文章</Link>
               <Link to="/admin/users" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">用户管理</Link>
             </>
           )}
-          {user ? (
-            <button onClick={handleLogout} className="text-white/50 text-sm text-left">退出登录</button>
-          ) : (
-            <Link to="/login" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">登录</Link>
-          )}
+          {authReady ? (
+            user ? (
+              <button onClick={handleLogout} className="text-white/50 text-sm text-left">退出登录</button>
+            ) : (
+              <Link to="/login" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">登录</Link>
+            )
+          ) : null}
         </div>
       )}
 

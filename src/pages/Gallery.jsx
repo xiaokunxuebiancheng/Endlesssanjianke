@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { Upload, Trash2, Image, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ADMIN_EMAIL, MAX_UPLOAD_SIZE, ALLOWED_IMAGE_TYPES } from '../lib/constants'
+import { Upload, Trash2, Image, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react'
 
 export default function Gallery() {
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState('')
   const [current, setCurrent] = useState(0)
   const fileRef = useRef(null)
-  const isAdmin = user?.email === '1375937000@qq.com'
+  const isAdmin = user?.email === ADMIN_EMAIL
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null))
@@ -27,8 +30,20 @@ export default function Gallery() {
   const handleUpload = async (e) => {
     const files = e.target.files
     if (!files?.length) return
+    setError('')
     setUploading(true)
+
     for (const file of files) {
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        setError(`不支持的文件类型：${file.name}`)
+        setUploading(false)
+        return
+      }
+      if (file.size > MAX_UPLOAD_SIZE) {
+        setError(`文件过大：${file.name}（最大 10MB）`)
+        setUploading(false)
+        return
+      }
       const name = Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
       await supabase.storage.from('gallery').upload(name, file)
     }
@@ -38,9 +53,13 @@ export default function Gallery() {
   }
 
   const handleDelete = async (name) => {
+    setDeleting(true)
     await supabase.storage.from('gallery').remove([name])
-    if (current >= images.length - 1) setCurrent(Math.max(0, current - 1))
-    fetchImages()
+    const { data } = await supabase.storage.from('gallery').list('', { sortBy: { column: 'created_at', order: 'desc' } })
+    const updated = data?.filter(f => !f.name.startsWith('.')) || []
+    setImages(updated)
+    if (current >= updated.length) setCurrent(Math.max(0, updated.length - 1))
+    setDeleting(false)
   }
 
   const getUrl = (name) => {
@@ -73,9 +92,10 @@ export default function Gallery() {
           <div className="flex items-center gap-3">
             {images.length > 0 && (
               <button onClick={() => handleDelete(images[current].name)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors">
+                disabled={deleting}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 disabled:opacity-50 transition-colors">
                 <Trash2 size={16} />
-                删除
+                {deleting ? '删除中...' : '删除'}
               </button>
             )}
             <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleUpload} className="hidden" />
@@ -87,6 +107,13 @@ export default function Gallery() {
           </div>
         )}
       </div>
+
+      {error && (
+        <div className="mb-8 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
+          <AlertCircle size={14} />
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-white/40 text-sm">加载中...</div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { ADMIN_EMAIL } from '../lib/constants'
 import { Save, ArrowLeft } from 'lucide-react'
 
 export default function AdminWrite() {
@@ -19,7 +20,7 @@ export default function AdminWrite() {
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
-      const admin = data.session?.user?.email === '1375937000@qq.com'
+      const admin = data.session?.user?.email === ADMIN_EMAIL
       setIsAdmin(admin)
       if (!admin) {
         setChecking(false)
@@ -43,23 +44,31 @@ export default function AdminWrite() {
     setSaving(true)
     setError('')
     const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean)
-    const slug = title
+    let slug = title
       .replace(/[^a-zA-Z0-9一-鿿]+/g, '-')
       .replace(/^-|-$/g, '')
       .toLowerCase() || Date.now().toString(36)
 
-    const finalSlug = editSlug || slug
-    const payload = {
-      title,
-      slug: finalSlug,
-      content,
-      excerpt,
-      tags: tagArray,
-      cover_url: coverUrl || null,
-      is_published: publish,
-    }
-
     try {
+      if (!editSlug) {
+        // Check for duplicate slug and append suffix if needed
+        const { data: existing } = await supabase.from('posts').select('slug').eq('slug', slug).single()
+        if (existing) {
+          slug = slug + '-' + Date.now().toString(36).slice(-4)
+        }
+      }
+
+      const finalSlug = editSlug || slug
+      const payload = {
+        title,
+        slug: finalSlug,
+        content,
+        excerpt,
+        tags: tagArray,
+        cover_url: coverUrl || null,
+        is_published: publish,
+      }
+
       if (editSlug) {
         const { error: updateError } = await supabase.from('posts').update(payload).eq('slug', editSlug)
         if (updateError) { setError(updateError.message); setSaving(false); return }
@@ -75,7 +84,7 @@ export default function AdminWrite() {
     }
 
     setSaving(false)
-    if (publish) navigate(`/blog/${finalSlug}`)
+    if (publish) navigate(`/blog/${editSlug || slug}`)
   }
 
   if (checking) return <div className="py-12 text-white/40 text-sm">加载中...</div>

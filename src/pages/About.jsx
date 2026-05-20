@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { ADMIN_EMAIL } from '../lib/constants'
 import { Edit3, Save, X, User, GraduationCap, Briefcase, MessageCircle, MapPin } from 'lucide-react'
 
 const defaultDetails = {
@@ -43,7 +44,7 @@ export default function About() {
     })
   }, [])
 
-  const isAdmin = user?.email === '1375937000@qq.com'
+  const isAdmin = user?.email === ADMIN_EMAIL
 
   const handleSave = async () => {
     setSaving(true)

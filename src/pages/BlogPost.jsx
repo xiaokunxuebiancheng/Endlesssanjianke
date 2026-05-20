@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { ADMIN_EMAIL } from '../lib/constants'
 import { ArrowLeft, Eye, Tag, Calendar } from 'lucide-react'
 
 export default function BlogPost() {
@@ -12,7 +13,7 @@ export default function BlogPost() {
   useEffect(() => {
     const fetchPost = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      const admin = session?.user?.email === '1375937000@qq.com'
+      const admin = session?.user?.email === ADMIN_EMAIL
       setIsAdmin(admin)
 
       let query = supabase.from('posts').select('*').eq('slug', slug)

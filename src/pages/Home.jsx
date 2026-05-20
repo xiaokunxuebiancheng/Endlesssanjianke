@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { ADMIN_EMAIL } from '../lib/constants'
 import { MessageSquare, Edit3, Check } from 'lucide-react'
 
 const DEFAULT_WELCOME = '欢迎来到我的个人空间'
@@ -15,7 +16,7 @@ export default function Home() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       const u = data.session?.user
-      setIsAdmin(u?.email === '1375937000@qq.com')
+      setIsAdmin(u?.email === ADMIN_EMAIL)
 
       const { data: p } = await supabase
         .from('profiles')
