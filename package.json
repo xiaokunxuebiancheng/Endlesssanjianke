@@ -16,6 +16,7 @@
     "@univerjs/design": "^0.24.0",
     "@univerjs/engine-formula": "^0.24.0",
     "@univerjs/engine-render": "^0.24.0",
+    "@univerjs/presets": "^0.24.0",
     "@univerjs/sheets": "^0.24.0",
     "@univerjs/sheets-ui": "^0.24.0",
     "@univerjs/ui": "^0.24.0",
@@ -36,6 +37,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
+    "playwright": "^1.60.0",
     "vite": "^8.0.10"
   }
 }
