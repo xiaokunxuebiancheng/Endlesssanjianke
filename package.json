@@ -12,6 +12,13 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
     "@tailwindcss/vite": "^4.2.4",
+    "@univerjs/core": "^0.24.0",
+    "@univerjs/design": "^0.24.0",
+    "@univerjs/engine-formula": "^0.24.0",
+    "@univerjs/engine-render": "^0.24.0",
+    "@univerjs/sheets": "^0.24.0",
+    "@univerjs/sheets-ui": "^0.24.0",
+    "@univerjs/ui": "^0.24.0",
     "lucide-react": "^1.14.0",
     "motion": "^12.38.0",
     "pg": "^8.20.0",

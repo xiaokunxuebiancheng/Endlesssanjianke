@@ -11,6 +11,9 @@ import BlogPost from './pages/BlogPost.jsx'
 import AdminWrite from './pages/AdminWrite.jsx'
 import AdminUsers from './pages/AdminUsers.jsx'
 import Login from './pages/Login.jsx'
+import { lazy, Suspense } from 'react'
+
+const Spreadsheet = lazy(() => import('./pages/Spreadsheet.jsx'))
 
 export default function App() {
   return (
@@ -29,6 +32,7 @@ export default function App() {
           <Route path="admin/write" element={<AdminWrite />} />
           <Route path="admin/users" element={<AdminUsers />} />
           <Route path="login" element={<Login />} />
+          <Route path="spreadsheet" element={<Suspense fallback={<div className="flex items-center justify-center h-64 text-white/40">加载中...</div>}><Spreadsheet /></Suspense>} />
         </Route>
       </Routes>
     </>
