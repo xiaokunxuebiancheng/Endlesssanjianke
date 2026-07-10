@@ -11,7 +11,6 @@ const navLinks = [
   { to: '/blog', label: '博客' },
   { to: '/gallery', label: '画廊' },
   { to: '/guestbook', label: '留言板' },
-  { to: '/spreadsheet', label: '表格' },
 ]
 
 export default function BlogLayout() {
