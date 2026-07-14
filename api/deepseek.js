@@ -1,9 +1,54 @@
 async function searchWeb(query) {
+  const encoded = encodeURIComponent(query);
+
+  // Try DDG Instant Answer API first (JSON, no scraping needed)
   try {
-    const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
-    const resp = await fetch(url, {
+    const ddgUrl = `https://api.duckduckgo.com/?q=${encoded}&format=json&no_html=1&skip_disambig=1`;
+    const resp = await fetch(ddgUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; LuminaBot/1.0)" },
+      signal: AbortSignal.timeout(4000),
+    });
+    const data = await resp.json();
+    const results = [];
+
+    if (data.AbstractText) {
+      results.push({
+        title: data.Heading || "Answer",
+        url: data.AbstractURL || "",
+        snippet: data.AbstractText,
+      });
+    }
+    if (data.Answer) {
+      results.push({
+        title: "Instant Answer",
+        url: "",
+        snippet: data.Answer,
+      });
+    }
+    for (const topic of (data.RelatedTopics || []).slice(0, 4)) {
+      if (topic.Text) {
+        results.push({
+          title: topic.FirstURL || "",
+          url: topic.FirstURL || "",
+          snippet: topic.Text,
+        });
+      }
+    }
+
+    if (results.length > 0) {
+      console.log(`DDG API found ${results.length} results for: ${query}`);
+      return results.slice(0, 6);
+    }
+  } catch (e) {
+    console.error("DDG API failed:", e.message);
+  }
+
+  // Fallback: scrape DDG HTML
+  try {
+    const htmlUrl = `https://html.duckduckgo.com/html/?q=${encoded}`;
+    const resp = await fetch(htmlUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; LuminaBot/1.0)",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html",
       },
       signal: AbortSignal.timeout(5000),
@@ -11,18 +56,18 @@ async function searchWeb(query) {
     const html = await resp.text();
 
     const results = [];
-    const linkRegex = /<a[^>]*href="([^"]+)"[^>]*class="result-link"[^>]*>([^<]+)<\/a>/gi;
-    const snippetRegex = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
+    const linkPattern = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+    const snippetPattern = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
 
-    let match;
+    let m;
     const links = [];
-    while ((match = linkRegex.exec(html)) !== null) {
-      links.push({ url: match[1], title: match[2].replace(/<[^>]*>/g, "").trim() });
+    while ((m = linkPattern.exec(html)) !== null) {
+      links.push({ url: m[1], title: m[2].replace(/<[^>]*>/g, "").trim() });
     }
 
     const snippets = [];
-    while ((match = snippetRegex.exec(html)) !== null) {
-      snippets.push(match[1].replace(/<[^>]*>/g, "").trim());
+    while ((m = snippetPattern.exec(html)) !== null) {
+      snippets.push(m[1].replace(/<[^>]*>/g, "").trim());
     }
 
     for (let i = 0; i < Math.min(links.length, 5); i++) {
@@ -33,10 +78,14 @@ async function searchWeb(query) {
       });
     }
 
+    console.log(`DDG HTML found ${results.length} results for: ${query}`);
     return results;
-  } catch {
-    return [];
+  } catch (e) {
+    console.error("DDG HTML failed:", e.message);
   }
+
+  console.log(`No search results for: ${query}`);
+  return [];
 }
 
 export default async function handler(req, res) {
@@ -58,17 +107,15 @@ export default async function handler(req, res) {
 
   try {
     let messages = req.body.messages;
-
-    // Extract last user message for search
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+
     if (lastUserMsg) {
       const searchResults = await searchWeb(lastUserMsg.content);
       if (searchResults.length > 0) {
-        const searchContext = `[Web search results for current information]\n${searchResults
-          .map((r, i) => `${i + 1}. ${r.title}\n   ${r.snippet}\n   URL: ${r.url}`)
-          .join("\n")}\n\nUse these search results to provide accurate, up-to-date information. If the results don't contain relevant info, just answer based on your knowledge.`;
+        const searchContext = `[Real-time web search results]\n${searchResults
+          .map((r, i) => `${i + 1}. ${r.title}\n   ${r.snippet}${r.url ? `\n   URL: ${r.url}` : ""}`)
+          .join("\n")}\n\nUse the above search results to provide accurate, up-to-date information. If the search results don't contain relevant information, use your own knowledge.`;
 
-        // Insert search context before the last user message
         messages = [
           ...messages.slice(0, -1),
           { role: "system", content: searchContext },
