@@ -25,11 +25,26 @@ export default async function handler(req, res) {
       body: JSON.stringify(req.body),
     });
 
+    if (!response.ok) {
+      const err = await response.text();
+      return res.status(response.status).json({ error: err });
+    }
+
     if (req.body.stream) {
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
-      return res.status(response.status).send(response.body);
+      res.setHeader("X-Accel-Buffering", "no");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(decoder.decode(value, { stream: true }));
+      }
+      return res.end();
     }
 
     const data = await response.json();
@@ -38,5 +53,3 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: "Proxy error", detail: String(err) });
   }
 }
-
-export const config = { runtime: "nodejs22" };
