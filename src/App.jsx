@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import BlogLayout from './components/BlogLayout.jsx'
 import BackgroundVideo from './components/BackgroundVideo.jsx'
+import ChatBubble from './components/ChatBubble.jsx'
 import Home from './pages/Home.jsx'
 
 import Guestbook from './pages/Guestbook.jsx'
@@ -31,6 +32,8 @@ export default function App() {
           <Route path="login" element={<Login />} />
         </Route>
       </Routes>
+
+      <ChatBubble />
     </>
   )
 }
