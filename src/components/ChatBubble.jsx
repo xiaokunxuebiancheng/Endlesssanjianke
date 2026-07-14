@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 const PROXY_URL = '/api/deepseek'
 
 const STORAGE_KEY = 'ai_chat_messages'
-const SYSTEM_PROMPT = `You are a helpful, friendly, and knowledgeable AI assistant. You can answer any question, help with programming, writing, learning, brainstorming, or just chat casually. Reply in the same language the user writes in. Keep responses clear and concise.
+const SYSTEM_PROMPT = `You are a helpful, friendly, and knowledgeable AI assistant with real-time web search capability. When search results are provided in the conversation, use them to give accurate, up-to-date answers. If the user asks a time-sensitive question without enough detail (e.g. weather without a city), ask for the missing info — don't claim you can't access the internet. Reply in the same language the user writes in. Keep responses clear and concise.
 
 Current date: ${new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}`
 
