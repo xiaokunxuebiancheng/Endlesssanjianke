@@ -3,9 +3,16 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 const PROXY_URL = '/api/deepseek'
 
 const STORAGE_KEY = 'ai_chat_messages'
+const STORAGE_SIZE_KEY = 'ai_chat_size'
+const STORAGE_POS_KEY = 'ai_chat_pos'
 const SYSTEM_PROMPT = `You are a helpful, friendly, and knowledgeable AI assistant with real-time web search capability. When search results are provided in the conversation, use them to give accurate, up-to-date answers. If the user asks a time-sensitive question without enough detail (e.g. weather without a city), ask for the missing info — don't claim you can't access the internet. Reply in the same language the user writes in. Keep responses clear and concise.
 
 Current date: ${new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}`
+
+const MIN_W = 320
+const MIN_H = 360
+const DEFAULT_W = 384
+const DEFAULT_H = 560
 
 function loadMessages() {
   try {
@@ -21,6 +28,20 @@ function saveMessages(msgs) {
   } catch { /* ignore */ }
 }
 
+function loadSaved(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw) return JSON.parse(raw)
+  } catch { /* ignore */ }
+  return fallback
+}
+
+function saveJson(key, val) {
+  try {
+    localStorage.setItem(key, JSON.stringify(val))
+  } catch { /* ignore */ }
+}
+
 export default function ChatBubble() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState(loadMessages)
@@ -30,6 +51,26 @@ export default function ChatBubble() {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
+  const [size, setSize] = useState(() => loadSaved(STORAGE_SIZE_KEY, { width: DEFAULT_W, height: DEFAULT_H }))
+  const [pos, setPos] = useState(() => loadSaved(STORAGE_POS_KEY, null))
+  const dragRef = useRef(null)
+  const posRef = useRef(pos)
+  const sizeRef = useRef(size)
+  const chatRef = useRef(null)
+
+  // Keep refs in sync so event handlers always read latest values
+  posRef.current = pos
+  sizeRef.current = size
+
+  function getDefaultPos() {
+    return {
+      left: Math.max(0, window.innerWidth - size.width - 24),
+      top: Math.max(0, window.innerHeight - size.height - 96),
+    }
+  }
+
+  const effectivePos = pos || getDefaultPos()
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streaming])
@@ -37,6 +78,71 @@ export default function ChatBubble() {
   useEffect(() => {
     if (open) inputRef.current?.focus()
   }, [open])
+
+  // Drag & resize handlers — stable refs, no stale closure issues
+  const handlersRef = useRef({ move: null, up: null })
+
+  if (!handlersRef.current.move) {
+    handlersRef.current.move = (e) => {
+      if (!dragRef.current) return
+      const { type, startX, startY, startLeft, startTop, startW, startH } = dragRef.current
+
+      if (type === 'move') {
+        const newPos = {
+          left: Math.max(-100, Math.min(startLeft + e.clientX - startX, window.innerWidth - 100)),
+          top: Math.max(0, Math.min(startTop + e.clientY - startY, window.innerHeight - 60)),
+        }
+        posRef.current = newPos
+        setPos(newPos)
+      } else if (type === 'resize') {
+        const dw = startX - e.clientX
+        const dh = startY - e.clientY
+        const newW = Math.max(MIN_W, Math.min(startW + dw, window.innerWidth - 16))
+        const newH = Math.max(MIN_H, Math.min(startH + dh, window.innerHeight - 16))
+        const newPos = {
+          left: Math.max(0, startLeft + (startW - newW)),
+          top: Math.max(0, startTop + (startH - newH)),
+        }
+        const newSize = { width: newW, height: newH }
+        posRef.current = newPos
+        sizeRef.current = newSize
+        setPos(newPos)
+        setSize(newSize)
+      }
+    }
+
+    handlersRef.current.up = () => {
+      if (!dragRef.current) return
+      saveJson(STORAGE_POS_KEY, posRef.current)
+      saveJson(STORAGE_SIZE_KEY, sizeRef.current)
+      dragRef.current = null
+      document.removeEventListener('pointermove', handlersRef.current.move)
+      document.removeEventListener('pointerup', handlersRef.current.up)
+    }
+  }
+
+  const onPointerDown = useCallback((e, type) => {
+    e.preventDefault()
+    const rect = chatRef.current?.getBoundingClientRect()
+    dragRef.current = {
+      type,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLeft: rect?.left ?? effectivePos.left,
+      startTop: rect?.top ?? effectivePos.top,
+      startW: rect?.width ?? size.width,
+      startH: rect?.height ?? size.height,
+    }
+    document.addEventListener('pointermove', handlersRef.current.move)
+    document.addEventListener('pointerup', handlersRef.current.up)
+  }, [effectivePos, size])
+
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('pointermove', handlersRef.current.move)
+      document.removeEventListener('pointerup', handlersRef.current.up)
+    }
+  }, [])
 
   function persist(msgs) {
     setMessages(msgs)
@@ -149,13 +255,35 @@ export default function ChatBubble() {
 
       {/* Chat window */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-96 h-[560px] max-h-[calc(100vh-120px)]
-                        bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200
-                        dark:border-gray-700 flex flex-col overflow-hidden transition-all duration-300">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200
-                          dark:border-gray-700 bg-indigo-600 text-white shrink-0">
-            <div className="flex items-center gap-2">
+        <div
+          ref={chatRef}
+          className="fixed z-50 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200
+                     dark:border-gray-700 flex flex-col overflow-hidden"
+          style={{
+            left: effectivePos.left,
+            top: effectivePos.top,
+            width: size.width,
+            height: size.height,
+          }}
+        >
+          {/* Resize handle — top-left corner */}
+          <div
+            onPointerDown={(e) => onPointerDown(e, 'resize')}
+            className="absolute top-0 left-0 w-5 h-5 z-10 cursor-nwse-resize group"
+            title="拖动调整大小"
+          >
+            <svg className="w-4 h-4 text-white/40 group-hover:text-white/80 absolute top-0.5 left-0.5 drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 8l-4 4m0 0l4 4m-4-4h16" />
+            </svg>
+          </div>
+
+          {/* Header — drag handle */}
+          <div
+            onPointerDown={(e) => onPointerDown(e, 'move')}
+            className="flex items-center justify-between px-4 py-3 border-b border-gray-200
+                       dark:border-gray-700 bg-indigo-600 text-white shrink-0 cursor-move select-none"
+          >
+            <div className="flex items-center gap-2 pointer-events-none">
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold">
                 AI
               </div>
