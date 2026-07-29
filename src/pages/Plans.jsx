@@ -211,7 +211,7 @@ export default function Plans() {
   // Week plan row (within a month card)
   const WeekRow = ({ plan, monthStatus }) => {
     const dailies = childrenOf(plan.id)
-    const isExpanded = expandedWeeks[plan.id] ?? false
+    const isExpanded = expandedWeeks[plan.id] ?? true
     const completedCount = dailies.filter(d => d.status === 'completed').length
     const totalCount = dailies.filter(d => d.status !== 'cancelled').length
     const weekOverdue = isOverdue(plan.due_date) && plan.status !== 'completed' && plan.status !== 'cancelled'
