@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   Plus, ChevronRight, ChevronDown, Calendar, Tag, Trash2, Edit3,
-  Target, Layers, ListTodo, Star, Clock, AlertCircle, CheckCircle2,
-  Circle, X, BookOpen, ArrowUp, Filter
+  Target, Layers, ListTodo, Clock, CheckCircle2,
+  Circle, X, GripVertical,
 } from 'lucide-react'
 
 const STATUS_CONFIG = {
@@ -14,10 +14,10 @@ const STATUS_CONFIG = {
 }
 
 const PRIORITY_CONFIG = {
-  low: { label: '低', bg: 'bg-slate-400/15 text-slate-300', dot: 'bg-slate-400' },
-  medium: { label: '中', bg: 'bg-blue-400/15 text-blue-300', dot: 'bg-blue-400' },
-  high: { label: '高', bg: 'bg-orange-400/15 text-orange-300', dot: 'bg-orange-400' },
-  urgent: { label: '紧急', bg: 'bg-red-400/15 text-red-300', dot: 'bg-red-400' },
+  low: { label: '低', bg: 'bg-slate-400/15 text-slate-300' },
+  medium: { label: '中', bg: 'bg-blue-400/15 text-blue-300' },
+  high: { label: '高', bg: 'bg-orange-400/15 text-orange-300' },
+  urgent: { label: '紧急', bg: 'bg-red-400/15 text-red-300' },
 }
 
 const TYPE_LABELS = { monthly: '月度目标', weekly: '周计划', daily: '日待办' }
@@ -37,38 +37,49 @@ function isOverdue(dueDate) {
 export default function Plans() {
   const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState({})
+  const [expandedMonths, setExpandedMonths] = useState({})
+  const [expandedWeeks, setExpandedWeeks] = useState({})
   const [showForm, setShowForm] = useState(false)
   const [editingPlan, setEditingPlan] = useState(null)
-  const [filterType, setFilterType] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [viewMode, setViewMode] = useState('hierarchy')
 
   const fetchPlans = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) { setPlans([]); setLoading(false); return }
-
     const { data } = await supabase
       .from('plans')
       .select('*')
       .eq('user_id', session.user.id)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false })
-
     setPlans(data || [])
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchPlans() }, [fetchPlans])
 
-  const toggleExpand = (id) => {
-    setExpanded(prev => ({ ...prev, [id]: !prev[id] }))
+  const toggleMonth = (id) => {
+    setExpandedMonths(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const toggleWeek = (id) => {
+    setExpandedWeeks(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
   const childrenOf = (parentId) =>
-    plans.filter(p => p.parent_id === parentId).sort((a, b) => a.sort_order - b.sort_order || new Date(a.created_at) - new Date(b.created_at))
+    plans.filter(p => p.parent_id === parentId)
+      .sort((a, b) => a.sort_order - b.sort_order || new Date(a.created_at) - new Date(b.created_at))
 
-  const topLevelPlans = (type) =>
-    plans.filter(p => p.plan_type === type && !p.parent_id).sort((a, b) => a.sort_order - b.sort_order || new Date(a.created_at) - new Date(b.created_at))
+  const topLevelMonths = () =>
+    plans.filter(p => p.plan_type === 'monthly' && !p.parent_id)
+      .sort((a, b) => a.sort_order - b.sort_order || new Date(a.created_at) - new Date(b.created_at))
+
+  const standaloneWeeks = () =>
+    plans.filter(p => p.plan_type === 'weekly' && !p.parent_id)
+
+  const standaloneDailies = () =>
+    plans.filter(p => p.plan_type === 'daily' && !p.parent_id)
 
   const cycleStatus = async (plan) => {
     const order = ['not_started', 'in_progress', 'completed']
@@ -94,134 +105,318 @@ export default function Plans() {
     setShowForm(true)
   }
 
-  const filteredPlans = (list) => {
-    return list.filter(p => {
-      if (filterStatus !== 'all' && p.status !== filterStatus) return false
-      return true
-    })
+  const filterByStatus = (list) => {
+    if (filterStatus === 'all') return list
+    return list.filter(p => p.status === filterStatus)
   }
 
-  // Recursive plan item component
-  const PlanItem = ({ plan, level = 0 }) => {
-    const children = childrenOf(plan.id)
-    const isExpanded = expanded[plan.id] ?? (level < 1)
-    const StatusIcon = STATUS_CONFIG[plan.status].icon
-    const TypeIcon = TYPE_ICONS[plan.plan_type] || ListTodo
-    const prio = PRIORITY_CONFIG[plan.priority]
+  // ===== Sub-components =====
+
+  const StatusBtn = ({ plan, size = 14 }) => {
+    const SIcon = STATUS_CONFIG[plan.status].icon
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); cycleStatus(plan) }}
+        className="shrink-0 text-white/40 hover:text-white transition-colors"
+        title={STATUS_CONFIG[plan.status].label}
+      >
+        <SIcon size={size} className={STATUS_CONFIG[plan.status].color} />
+      </button>
+    )
+  }
+
+  const PriorityBadge = ({ priority }) => {
+    const p = PRIORITY_CONFIG[priority]
+    return <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${p.bg}`}>{p.label}</span>
+  }
+
+  const TagsRow = ({ tags }) => {
+    if (!tags || tags.length === 0) return null
+    return tags.slice(0, 3).map(tag => (
+      <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-white/40 flex items-center gap-1">
+        <Tag size={8} />{tag}
+      </span>
+    ))
+  }
+
+  const DueDate = ({ date, status }) => {
+    if (!date) return null
+    const overdue = isOverdue(date) && status !== 'completed' && status !== 'cancelled'
+    return (
+      <span className={`flex items-center gap-1 text-[10px] ${overdue ? 'text-red-400' : 'text-white/25'}`}>
+        <Calendar size={10} />
+        {formatDate(date)}
+        {overdue && <span className="text-red-400/80">逾期</span>}
+      </span>
+    )
+  }
+
+  const ActionBtns = ({ plan, showAddChild = false }) => (
+    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      {showAddChild && plan.plan_type === 'monthly' && (
+        <button
+          onClick={(e) => { e.stopPropagation(); openCreate(plan.id, 'weekly') }}
+          className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
+          title="添加周计划"
+        >
+          <Plus size={14} />
+        </button>
+      )}
+      {showAddChild && plan.plan_type === 'weekly' && (
+        <button
+          onClick={(e) => { e.stopPropagation(); openCreate(plan.id, 'daily') }}
+          className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
+          title="添加日待办"
+        >
+          <Plus size={14} />
+        </button>
+      )}
+      <button
+        onClick={(e) => { e.stopPropagation(); openEdit(plan) }}
+        className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
+        title="编辑"
+      >
+        <Edit3 size={13} />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); deletePlan(plan.id) }}
+        className="p-1.5 rounded-lg text-white/25 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+        title="删除"
+      >
+        <Trash2 size={13} />
+      </button>
+    </div>
+  )
+
+  // Daily todo item (simple row)
+  const DailyRow = ({ plan }) => {
     const overdue = isOverdue(plan.due_date) && plan.status !== 'completed' && plan.status !== 'cancelled'
+    return (
+      <div className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg ml-8 transition-colors hover:bg-white/[0.03] cursor-pointer
+        ${plan.status === 'completed' ? 'opacity-50' : ''}
+        ${plan.status === 'cancelled' ? 'opacity-30 line-through' : ''}
+      `} onClick={() => openEdit(plan)}>
+        <StatusBtn plan={plan} size={12} />
+        <span className={`flex-1 text-xs ${plan.status === 'completed' ? 'text-white/30' : 'text-white/70'} truncate`}>
+          {plan.title}
+        </span>
+        <PriorityBadge priority={plan.priority} />
+        <DueDate date={plan.due_date} status={plan.status} />
+        <TagsRow tags={plan.tags} />
+        <ActionBtns plan={plan} />
+      </div>
+    )
+  }
+
+  // Week plan row (within a month card)
+  const WeekRow = ({ plan, monthStatus }) => {
+    const dailies = childrenOf(plan.id)
+    const isExpanded = expandedWeeks[plan.id] ?? false
+    const completedCount = dailies.filter(d => d.status === 'completed').length
+    const totalCount = dailies.filter(d => d.status !== 'cancelled').length
+    const weekOverdue = isOverdue(plan.due_date) && plan.status !== 'completed' && plan.status !== 'cancelled'
 
     return (
       <div className="select-none">
         <div
-          className={`group flex items-center gap-3 px-4 py-3 rounded-xl transition-colors cursor-pointer
-            ${level === 0 ? 'liquid-glass' : level === 1 ? 'bg-white/[0.03] hover:bg-white/[0.05]' : 'bg-white/[0.02] hover:bg-white/[0.04]'}
-            ${plan.status === 'completed' ? 'opacity-60' : ''}
-            ${plan.status === 'cancelled' ? 'opacity-40 line-through' : ''}
+          className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-lg ml-4 transition-colors cursor-pointer
+            ${plan.status === 'completed' ? 'opacity-50' : ''}
+            ${plan.status === 'cancelled' ? 'opacity-30 line-through' : ''}
+            hover:bg-white/[0.04]
           `}
-          style={{ marginLeft: level * 16 }}
+          onClick={() => openEdit(plan)}
         >
-          {/* Expand/collapse */}
+          {/* Expand toggle for dailies */}
           <button
-            onClick={(e) => { e.stopPropagation(); toggleExpand(plan.id) }}
-            className="p-0.5 text-white/25 hover:text-white/60 transition-colors shrink-0"
+            onClick={(e) => { e.stopPropagation(); toggleWeek(plan.id) }}
+            className="p-0.5 text-white/20 hover:text-white/50 transition-colors shrink-0"
           >
-            {children.length > 0 ? (
-              isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+            {dailies.length > 0 ? (
+              isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />
             ) : (
-              <span className="w-[14px] block" />
+              <span className="w-3 block" />
             )}
           </button>
 
-          {/* Status toggle */}
-          <button
-            onClick={(e) => { e.stopPropagation(); cycleStatus(plan) }}
-            className="shrink-0 text-white/40 hover:text-white transition-colors"
-            title={STATUS_CONFIG[plan.status].label}
-          >
-            <StatusIcon size={16} className={STATUS_CONFIG[plan.status].color} />
-          </button>
+          <StatusBtn plan={plan} size={13} />
 
-          {/* Type icon */}
-          <TypeIcon size={14} className="text-white/20 shrink-0" />
+          <Layers size={12} className="text-white/25 shrink-0" />
 
-          {/* Content */}
-          <div className="flex-1 min-w-0" onClick={() => openEdit(plan)}>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-sm font-medium ${plan.status === 'completed' ? 'text-white/40' : 'text-white/85'}`}>
-                {plan.title}
-              </span>
-              {/* Priority badge */}
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${prio.bg}`}>
-                {prio.label}
-              </span>
-              {/* Type badge */}
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/5 text-white/30">
-                {TYPE_LABELS[plan.plan_type]}
-              </span>
-              {/* Tags */}
-              {(plan.tags || []).slice(0, 3).map(tag => (
-                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-white/40 flex items-center gap-1">
-                  <Tag size={8} />{tag}
-                </span>
-              ))}
-            </div>
-            {plan.description && (
-              <p className="text-xs text-white/30 mt-0.5 line-clamp-1">{plan.description}</p>
-            )}
-            <div className="flex items-center gap-3 mt-1 text-[10px] text-white/25">
-              {plan.due_date && (
-                <span className={`flex items-center gap-1 ${overdue ? 'text-red-400' : ''}`}>
-                  <Calendar size={10} />
-                  {formatDate(plan.due_date)}
-                  {overdue && <span className="text-red-400/80">逾期</span>}
-                </span>
-              )}
-              <span className="flex items-center gap-1">
-                <Clock size={10} />
-                {formatDate(plan.created_at)}
-              </span>
-            </div>
-          </div>
+          <span className={`flex-1 text-sm ${plan.status === 'completed' ? 'text-white/35' : 'text-white/80'} truncate`}>
+            {plan.title}
+          </span>
 
-          {/* Actions */}
+          {/* Week progress */}
+          {totalCount > 0 && (
+            <span className="text-[10px] text-white/25">
+              {completedCount}/{totalCount}
+            </span>
+          )}
+
+          <PriorityBadge priority={plan.priority} />
+          {weekOverdue && <span className="text-[10px] text-red-400/80">逾期</span>}
+          <DueDate date={plan.due_date} status={plan.status} />
+          <TagsRow tags={plan.tags} />
+
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            {plan.plan_type !== 'daily' && (
-              <button
-                onClick={(e) => { e.stopPropagation(); openCreate(plan.id, plan.plan_type === 'monthly' ? 'weekly' : 'daily') }}
-                className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-                title={`添加${plan.plan_type === 'monthly' ? '周计划' : '日待办'}`}
-              >
-                <Plus size={14} />
-              </button>
-            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); openCreate(plan.id, 'daily') }}
+              className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
+              title="添加日待办"
+            >
+              <Plus size={13} />
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); openEdit(plan) }}
               className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-              title="编辑"
             >
-              <Edit3 size={13} />
+              <Edit3 size={12} />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); deletePlan(plan.id) }}
               className="p-1.5 rounded-lg text-white/25 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-              title="删除"
             >
-              <Trash2 size={13} />
+              <Trash2 size={12} />
             </button>
           </div>
         </div>
 
-        {/* Children */}
-        {children.length > 0 && isExpanded && (
-          <div className="mt-0.5">
-            {filteredPlans(children).map(child => (
-              <PlanItem key={child.id} plan={child} level={level + 1} />
+        {/* Expanded dailies */}
+        {dailies.length > 0 && isExpanded && (
+          <div className="ml-4 mt-0.5 border-l border-white/[0.04] pl-4">
+            {filterByStatus(dailies).map(d => (
+              <DailyRow key={d.id} plan={d} />
             ))}
           </div>
         )}
       </div>
     )
   }
+
+  // Monthly goal card
+  const MonthCard = ({ plan }) => {
+    const weeks = childrenOf(plan.id)
+    const isExpanded = expandedMonths[plan.id] ?? true
+    const totalWeeks = weeks.filter(w => w.status !== 'cancelled').length
+    const completedWeeks = weeks.filter(w => w.status === 'completed').length
+    const monthOverdue = isOverdue(plan.due_date) && plan.status !== 'completed' && plan.status !== 'cancelled'
+
+    return (
+      <div className="liquid-glass rounded-2xl overflow-hidden">
+        {/* Month header */}
+        <div
+          className={`group flex items-center gap-3 px-5 py-4 cursor-pointer transition-colors hover:bg-white/[0.02]
+            ${plan.status === 'completed' ? 'opacity-60' : ''}
+            ${plan.status === 'cancelled' ? 'opacity-40' : ''}
+          `}
+          onClick={() => openEdit(plan)}
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleMonth(plan.id) }}
+            className="p-0.5 text-white/25 hover:text-white/60 transition-colors shrink-0"
+          >
+            {weeks.length > 0 ? (
+              isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+            ) : (
+              <span className="w-4 block" />
+            )}
+          </button>
+
+          <StatusBtn plan={plan} size={16} />
+
+          <Target size={16} className="text-white/30 shrink-0" />
+
+          <div className="flex-1 min-w-0" onClick={() => openEdit(plan)}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-base font-semibold ${plan.status === 'completed' ? 'text-white/35' : 'text-white'} ${plan.status === 'cancelled' ? 'line-through' : ''}`}>
+                {plan.title}
+              </span>
+              <PriorityBadge priority={plan.priority} />
+              {monthOverdue && <span className="text-[10px] text-red-400/80 font-medium">逾期</span>}
+              {totalWeeks > 0 && (
+                <span className="text-[10px] text-white/25">
+                  ({completedWeeks}/{totalWeeks} 周完成)
+                </span>
+              )}
+            </div>
+            {plan.description && (
+              <p className="text-xs text-white/30 mt-1 line-clamp-1">{plan.description}</p>
+            )}
+            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-white/25">
+              <DueDate date={plan.due_date} status={plan.status} />
+              <span className="flex items-center gap-1">
+                <Clock size={10} />{formatDate(plan.created_at)}
+              </span>
+              <TagsRow tags={plan.tags} />
+            </div>
+          </div>
+
+          {/* Month actions */}
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); openCreate(plan.id, 'weekly') }}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-white/30 hover:text-white/70 bg-white/[0.04] hover:bg-white/[0.08] text-xs transition-colors"
+              title="添加周计划"
+            >
+              <Plus size={12} />周计划
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); openEdit(plan) }}
+              className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
+            >
+              <Edit3 size={13} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); deletePlan(plan.id) }}
+              className="p-1.5 rounded-lg text-white/25 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        </div>
+
+        {/* Week progress bar */}
+        {totalWeeks > 0 && (
+          <div className="px-5 pb-1">
+            <div className="h-0.5 bg-white/[0.04] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-white/20 rounded-full transition-all duration-500"
+                style={{ width: `${(completedWeeks / totalWeeks) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Weeks list */}
+        {weeks.length > 0 && isExpanded && (
+          <div className="px-2 pb-2 pt-1 border-t border-white/[0.03] mt-1">
+            {filterByStatus(weeks).map(week => (
+              <WeekRow key={week.id} plan={week} monthStatus={plan.status} />
+            ))}
+          </div>
+        )}
+
+        {/* Empty state when expanded but no weeks */}
+        {weeks.length === 0 && isExpanded && (
+          <div className="px-5 pb-4 border-t border-white/[0.03] pt-3">
+            <button
+              onClick={() => openCreate(plan.id, 'weekly')}
+              className="w-full py-3 rounded-xl border border-dashed border-white/[0.06] text-white/25 text-xs hover:text-white/50 hover:border-white/[0.12] transition-colors flex items-center justify-center gap-1.5"
+            >
+              <Plus size={12} />
+              添加周计划
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ===== Main render =====
+
+  const months = topLevelMonths()
+  const orphanWeeks = standaloneWeeks()
+  const orphanDailies = standaloneDailies()
 
   return (
     <div className="py-12">
@@ -232,17 +427,6 @@ export default function Plans() {
           <h1 className="text-3xl font-bold text-white">计划管理</h1>
         </div>
         <div className="flex items-center gap-2">
-          {/* Filters */}
-          <select
-            value={filterType}
-            onChange={e => setFilterType(e.target.value)}
-            className="text-xs bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-white/60 outline-none cursor-pointer"
-          >
-            <option value="all">全部类型</option>
-            <option value="monthly">月度目标</option>
-            <option value="weekly">周计划</option>
-            <option value="daily">日待办</option>
-          </select>
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
@@ -259,12 +443,12 @@ export default function Plans() {
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors"
           >
             <Plus size={16} />
-            新建目标
+            新建月度目标
           </button>
         </div>
       </div>
 
-      {/* Plan list */}
+      {/* Content */}
       {loading ? (
         <div className="text-white/40 text-sm text-center py-20">加载中...</div>
       ) : plans.length === 0 ? (
@@ -280,44 +464,35 @@ export default function Plans() {
           </button>
         </div>
       ) : (
-        <div className="space-y-8">
-          {/* Monthly goals as top level sections */}
-          {(filterType === 'all' || filterType === 'monthly') && topLevelPlans('monthly').length > 0 && (
+        <div className="space-y-6">
+          {/* Monthly goals with their weeks and dailies */}
+          {filterByStatus(months).map(month => (
+            <MonthCard key={month.id} plan={month} />
+          ))}
+
+          {/* Orphan weeks (not under any month) */}
+          {orphanWeeks.length > 0 && (
             <section>
-              <h2 className="text-sm font-medium text-white/40 mb-3 flex items-center gap-2">
-                <Target size={14} /> 月度目标
+              <h2 className="text-sm font-medium text-white/30 mb-2 flex items-center gap-2">
+                <Layers size={14} /> 未归属的周计划
               </h2>
-              <div className="space-y-1">
-                {filteredPlans(topLevelPlans('monthly')).map(plan => (
-                  <PlanItem key={plan.id} plan={plan} level={0} />
+              <div className="liquid-glass rounded-2xl p-2 space-y-0.5">
+                {filterByStatus(orphanWeeks).map(week => (
+                  <WeekRow key={week.id} plan={week} />
                 ))}
               </div>
             </section>
           )}
 
-          {/* Unparented weeklies */}
-          {(filterType === 'all' || filterType === 'weekly') && topLevelPlans('weekly').length > 0 && (
+          {/* Orphan dailies */}
+          {orphanDailies.length > 0 && (
             <section>
-              <h2 className="text-sm font-medium text-white/40 mb-3 flex items-center gap-2">
-                <Layers size={14} /> 独立周计划
+              <h2 className="text-sm font-medium text-white/30 mb-2 flex items-center gap-2">
+                <ListTodo size={14} /> 未归属的日待办
               </h2>
-              <div className="space-y-1">
-                {filteredPlans(topLevelPlans('weekly')).map(plan => (
-                  <PlanItem key={plan.id} plan={plan} level={0} />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Unparented dailies */}
-          {(filterType === 'all' || filterType === 'daily') && topLevelPlans('daily').length > 0 && (
-            <section>
-              <h2 className="text-sm font-medium text-white/40 mb-3 flex items-center gap-2">
-                <ListTodo size={14} /> 独立日待办
-              </h2>
-              <div className="space-y-1">
-                {filteredPlans(topLevelPlans('daily')).map(plan => (
-                  <PlanItem key={plan.id} plan={plan} level={0} />
+              <div className="liquid-glass rounded-2xl p-2 space-y-0.5">
+                {filterByStatus(orphanDailies).map(d => (
+                  <DailyRow key={d.id} plan={d} />
                 ))}
               </div>
             </section>
@@ -330,6 +505,8 @@ export default function Plans() {
     </div>
   )
 }
+
+// ===== Form Modal =====
 
 function PlanFormModal({ plan, onClose, onSaved, plans }) {
   const isEdit = !!plan?.id
@@ -345,7 +522,6 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Get available parent plans based on type
   const availableParents = plans.filter(p =>
     p.id !== plan?.id &&
     ((planType === 'weekly' && p.plan_type === 'monthly') ||
@@ -397,14 +573,8 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
 
   const addTag = () => {
     const t = tagInput.trim()
-    if (t && !tags.includes(t)) {
-      setTags([...tags, t])
-    }
+    if (t && !tags.includes(t)) setTags([...tags, t])
     setTagInput('')
-  }
-
-  const removeTag = (t) => {
-    setTags(tags.filter(tag => tag !== t))
   }
 
   return (
@@ -424,7 +594,6 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Title */}
           <div>
             <label className="text-xs text-white/40 mb-1.5 block">标题</label>
             <input
@@ -437,7 +606,6 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
             />
           </div>
 
-          {/* Description */}
           <div>
             <label className="text-xs text-white/40 mb-1.5 block">描述</label>
             <textarea
@@ -450,7 +618,6 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
             />
           </div>
 
-          {/* Type & Priority */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-white/40 mb-1.5 block">类型</label>
@@ -471,15 +638,14 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
                 onChange={e => setPriority(e.target.value)}
                 className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none cursor-pointer"
               >
-                <option value="low">🟢 低</option>
-                <option value="medium">🔵 中</option>
-                <option value="high">🟠 高</option>
-                <option value="urgent">🔴 紧急</option>
+                <option value="low">低</option>
+                <option value="medium">中</option>
+                <option value="high">高</option>
+                <option value="urgent">紧急</option>
               </select>
             </div>
           </div>
 
-          {/* Status & Due Date */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-white/40 mb-1.5 block">状态</label>
@@ -505,7 +671,6 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
             </div>
           </div>
 
-          {/* Parent plan */}
           {planType !== 'monthly' && availableParents.length > 0 && (
             <div>
               <label className="text-xs text-white/40 mb-1.5 block">
@@ -518,22 +683,19 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
               >
                 <option value="">无</option>
                 {availableParents.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.title} ({TYPE_LABELS[p.plan_type]})
-                  </option>
+                  <option key={p.id} value={p.id}>{p.title} ({TYPE_LABELS[p.plan_type]})</option>
                 ))}
               </select>
             </div>
           )}
 
-          {/* Tags */}
           <div>
             <label className="text-xs text-white/40 mb-1.5 block">标签</label>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {tags.map(t => (
                 <span key={t} className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white/[0.08] text-white/70">
                   {t}
-                  <button type="button" onClick={() => removeTag(t)} className="text-white/30 hover:text-white/80">
+                  <button type="button" onClick={() => setTags(tags.filter(tag => tag !== t))} className="text-white/30 hover:text-white/80">
                     <X size={10} />
                   </button>
                 </span>
@@ -548,37 +710,23 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
                 maxLength={30}
                 className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-white/20 outline-none focus:border-white/20 transition-colors"
               />
-              <button
-                type="button"
-                onClick={addTag}
-                className="px-4 py-2.5 rounded-xl bg-white/[0.06] text-white/60 text-sm hover:bg-white/[0.10] transition-colors"
-              >
+              <button type="button" onClick={addTag} className="px-4 py-2.5 rounded-xl bg-white/[0.06] text-white/60 text-sm hover:bg-white/[0.10] transition-colors">
                 <Plus size={16} />
               </button>
             </div>
           </div>
 
-          {/* Error message */}
           {error && (
             <div className="px-4 py-2.5 rounded-xl bg-red-400/10 border border-red-400/20 text-red-400 text-xs">
               {error}
             </div>
           )}
 
-          {/* Actions */}
           <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-white/[0.04] text-white/50 text-sm hover:bg-white/[0.08] transition-colors"
-            >
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl bg-white/[0.04] text-white/50 text-sm hover:bg-white/[0.08] transition-colors">
               取消
             </button>
-            <button
-              type="submit"
-              disabled={saving || !title.trim()}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 disabled:opacity-30 transition-colors"
-            >
+            <button type="submit" disabled={saving || !title.trim()} className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 disabled:opacity-30 transition-colors">
               {saving ? '保存中...' : (isEdit ? '更新' : '创建')}
             </button>
           </div>
