@@ -1,11 +1,15 @@
 export default function Background() {
   return (
-    <>
-      <div className="fixed inset-0 z-[0] bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950" />
-      <div className="fixed inset-0 z-[0] opacity-[0.03]"
-        style={{
-          backgroundImage: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.4) 0%, transparent 50%), radial-gradient(circle at 70% 80%, rgba(255,255,255,0.3) 0%, transparent 50%)',
-        }} />
-    </>
+    <div
+      className="fixed inset-0 pointer-events-none"
+      style={{
+        zIndex: 0,
+        background: `
+          radial-gradient(ellipse 80% 60% at 30% 20%, rgba(40,40,50,0.6) 0%, transparent 60%),
+          radial-gradient(ellipse 60% 80% at 70% 70%, rgba(30,30,40,0.5) 0%, transparent 60%),
+          #0a0a0a
+        `,
+      }}
+    />
   )
 }
