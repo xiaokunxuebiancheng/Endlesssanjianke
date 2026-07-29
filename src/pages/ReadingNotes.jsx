@@ -268,34 +268,48 @@ function ReadingNoteFormModal({ note, onClose, onSaved }) {
   const [startedDate, setStartedDate] = useState(note?.started_date || '')
   const [finishedDate, setFinishedDate] = useState(note?.finished_date || '')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!bookTitle.trim()) return
     setSaving(true)
+    setError('')
 
-    const payload = {
-      book_title: bookTitle.trim(),
-      author: author.trim(),
-      cover_url: coverUrl.trim() || null,
-      notes: notes.trim(),
-      rating: rating || null,
-      status,
-      started_date: startedDate || null,
-      finished_date: status === 'finished' ? (finishedDate || new Date().toISOString().slice(0, 10)) : (finishedDate || null),
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) {
+        setError('请先登录后再操作')
+        setSaving(false)
+        return
+      }
+
+      const payload = {
+        book_title: bookTitle.trim(),
+        author: author.trim(),
+        cover_url: coverUrl.trim() || null,
+        notes: notes.trim(),
+        rating: rating || null,
+        status,
+        started_date: startedDate || null,
+        finished_date: status === 'finished' ? (finishedDate || new Date().toISOString().slice(0, 10)) : (finishedDate || null),
+        user_id: session.user.id,
+      }
+
+      if (isEdit) {
+        const { error: updateErr } = await supabase.from('reading_notes').update(payload).eq('id', note.id)
+        if (updateErr) throw updateErr
+      } else {
+        const { error: insertErr } = await supabase.from('reading_notes').insert(payload)
+        if (insertErr) throw insertErr
+      }
+
+      onSaved()
+      onClose()
+    } catch (err) {
+      setError(err.message || '保存失败，请重试')
+      setSaving(false)
     }
-
-    const { data: { session } } = await supabase.auth.getSession()
-    payload.user_id = session.user.id
-
-    if (isEdit) {
-      await supabase.from('reading_notes').update(payload).eq('id', note.id)
-    } else {
-      await supabase.from('reading_notes').insert(payload)
-    }
-
-    onSaved()
-    onClose()
   }
 
   return (
@@ -414,6 +428,13 @@ function ReadingNoteFormModal({ note, onClose, onSaved }) {
               className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-white/20 outline-none resize-none focus:border-white/20 transition-colors"
             />
           </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="px-4 py-2.5 rounded-xl bg-red-400/10 border border-red-400/20 text-red-400 text-xs">
+              {error}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">

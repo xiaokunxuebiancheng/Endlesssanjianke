@@ -343,6 +343,7 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
   const [tags, setTags] = useState(plan?.tags || [])
   const [parentId, setParentId] = useState(plan?.parent_id || null)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   // Get available parent plans based on type
   const availableParents = plans.filter(p =>
@@ -355,30 +356,43 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
     e.preventDefault()
     if (!title.trim()) return
     setSaving(true)
+    setError('')
 
-    const payload = {
-      title: title.trim(),
-      description: description.trim(),
-      plan_type: planType,
-      priority,
-      due_date: dueDate || null,
-      status,
-      tags,
-      parent_id: parentId,
-      sort_order: 0,
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) {
+        setError('请先登录后再操作')
+        setSaving(false)
+        return
+      }
+
+      const payload = {
+        title: title.trim(),
+        description: description.trim(),
+        plan_type: planType,
+        priority,
+        due_date: dueDate || null,
+        status,
+        tags,
+        parent_id: parentId,
+        sort_order: 0,
+        user_id: session.user.id,
+      }
+
+      if (isEdit) {
+        const { error: updateErr } = await supabase.from('plans').update(payload).eq('id', plan.id)
+        if (updateErr) throw updateErr
+      } else {
+        const { error: insertErr } = await supabase.from('plans').insert(payload)
+        if (insertErr) throw insertErr
+      }
+
+      onSaved()
+      onClose()
+    } catch (err) {
+      setError(err.message || '保存失败，请重试')
+      setSaving(false)
     }
-
-    const { data: { session } } = await supabase.auth.getSession()
-    payload.user_id = session.user.id
-
-    if (isEdit) {
-      await supabase.from('plans').update(payload).eq('id', plan.id)
-    } else {
-      await supabase.from('plans').insert(payload)
-    }
-
-    onSaved()
-    onClose()
   }
 
   const addTag = () => {
@@ -543,6 +557,13 @@ function PlanFormModal({ plan, onClose, onSaved, plans }) {
               </button>
             </div>
           </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="px-4 py-2.5 rounded-xl bg-red-400/10 border border-red-400/20 text-red-400 text-xs">
+              {error}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
