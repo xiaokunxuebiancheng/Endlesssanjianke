@@ -12,6 +12,8 @@ import BlogPost from './pages/BlogPost.jsx'
 import AdminWrite from './pages/AdminWrite.jsx'
 import AdminUsers from './pages/AdminUsers.jsx'
 import Login from './pages/Login.jsx'
+import Plans from './pages/Plans.jsx'
+import ReadingNotes from './pages/ReadingNotes.jsx'
 
 export default function App() {
   return (
@@ -29,6 +31,8 @@ export default function App() {
           <Route path="blog/:slug" element={<BlogPost />} />
           <Route path="admin/write" element={<AdminWrite />} />
           <Route path="admin/users" element={<AdminUsers />} />
+          <Route path="plans" element={<Plans />} />
+          <Route path="reading" element={<ReadingNotes />} />
           <Route path="login" element={<Login />} />
         </Route>
       </Routes>
