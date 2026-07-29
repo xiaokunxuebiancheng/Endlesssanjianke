@@ -1,737 +1,551 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import {
-  Plus, ChevronRight, ChevronDown, Calendar, Tag, Trash2, Edit3,
-  Target, Layers, ListTodo, Clock, CheckCircle2,
-  Circle, X, GripVertical,
-} from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Trash2, Save, Download } from 'lucide-react'
 
-const STATUS_CONFIG = {
-  not_started: { label: '未开始', icon: Circle, color: 'text-white/35' },
-  in_progress: { label: '进行中', icon: Clock, color: 'text-blue-400' },
-  completed: { label: '已完成', icon: CheckCircle2, color: 'text-green-400' },
-  cancelled: { label: '已取消', icon: X, color: 'text-white/20' },
+// ====== helpers ======
+
+function getDefaultMonthKey() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-const PRIORITY_CONFIG = {
-  low: { label: '低', bg: 'bg-slate-400/15 text-slate-300' },
-  medium: { label: '中', bg: 'bg-blue-400/15 text-blue-300' },
-  high: { label: '高', bg: 'bg-orange-400/15 text-orange-300' },
-  urgent: { label: '紧急', bg: 'bg-red-400/15 text-red-300' },
+function formatMonthLabel(key) {
+  const [y, m] = key.split('-')
+  return `${y}年${parseInt(m)}月`
 }
 
-const TYPE_LABELS = { monthly: '月度目标', weekly: '周计划', daily: '日待办' }
-const TYPE_ICONS = { monthly: Target, weekly: Layers, daily: ListTodo }
-
-function formatDate(d) {
-  if (!d) return ''
-  const date = new Date(d)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+function parseMonthKey(key) {
+  const [y, m] = key.split('-').map(Number)
+  return { year: y, month: m }
 }
 
-function isOverdue(dueDate) {
-  if (!dueDate) return false
-  return new Date(dueDate) < new Date(new Date().toDateString())
+function shiftMonth(key, delta) {
+  const { year, month } = parseMonthKey(key)
+  let m = month + delta
+  let y = year
+  if (m > 12) { m = 1; y++ }
+  if (m < 1) { m = 12; y-- }
+  return `${y}-${String(m).padStart(2, '0')}`
 }
+
+function computeWeekRanges(key) {
+  const { year, month } = parseMonthKey(key)
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const starts = daysInMonth <= 28 ? [1, 8, 15, 22] : [1, 8, 15, 22, 29]
+  const ranges = starts.map((s, i) => {
+    const end = i < starts.length - 1 ? starts[i + 1] - 1 : daysInMonth
+    return { start: `${month}/${s}`, end: `${month}/${end}` }
+  })
+  while (ranges.length < 5) ranges.push({ start: '', end: '' })
+  return ranges
+}
+
+let uid = 0
+function genId() { return 'i_' + (++uid) + '_' + Math.random().toString(36).slice(2, 6) }
+
+// ====== default data ======
+
+const WEEK_NAMES = ['第一周', '第二周', '第三周', '第四周', '第五周']
+
+const DEFAULT_DATA = {
+  goals: [
+    { id: 'g1', description: '', keyResult: '', weight: '' },
+    { id: 'g2', description: '', keyResult: '', weight: '' },
+    { id: 'g3', description: '', keyResult: '', weight: '' },
+  ],
+  weeks: WEEK_NAMES.map(() => ({
+    tasks: [
+      { id: 't1', priority: 'P1', content: '', owner: '', deadline: '', status: '未开始' },
+      { id: 't2', priority: 'P1', content: '', owner: '', deadline: '', status: '未开始' },
+      { id: 't3', priority: 'P1', content: '', owner: '', deadline: '', status: '未开始' },
+      { id: 't4', priority: 'P1', content: '', owner: '', deadline: '', status: '未开始' },
+    ],
+    review: { done: '', improve: '', next: '' },
+  })),
+  reading: [
+    { id: 'r1', title: '', author: '', status: '已读完', rating: '', notes: '' },
+  ],
+  other: [
+    { id: 'o1', emoji: '📋', label: '待办 / 备忘', value: '' },
+    { id: 'o2', emoji: '⚠️', label: '风险 / 依赖', value: '' },
+    { id: 'o3', emoji: '📚', label: '学习 / 成长', value: '' },
+    { id: 'o4', emoji: '📝', label: '备注', value: '' },
+  ],
+  summary: [
+    { id: 's1', emoji: '✅', label: '本月已完成', value: '' },
+    { id: 's2', emoji: '❌', label: '未完成及原因', value: '' },
+    { id: 's3', emoji: '💡', label: '经验与改进', value: '' },
+    { id: 's4', emoji: '🎯', label: '下月重点方向', value: '' },
+  ],
+}
+
+// ====== styles (inline, matching the template's clean white-card aesthetic) ======
+
+const S = {
+  input: 'w-full bg-transparent border border-transparent rounded px-2 py-1 text-sm outline-none hover:bg-black/[0.02] focus:border-blue-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(3,102,214,0.1)] transition-colors',
+  textarea: 'w-full bg-transparent border border-transparent rounded px-2 py-1 text-sm outline-none hover:bg-black/[0.02] focus:border-blue-400 focus:bg-white focus:shadow-[0_0_0_3px_rgba(3,102,214,0.1)] transition-colors resize-none',
+  select: 'bg-white border border-gray-200 rounded px-2 py-0.5 text-sm outline-none cursor-pointer',
+  btnDel: 'w-6 h-6 border-none bg-transparent text-red-500 text-lg cursor-pointer rounded flex items-center justify-center hover:bg-red-50',
+  btnAdd: 'inline-flex items-center gap-1 px-3 py-1.5 mt-2 bg-white text-blue-500 border border-dashed border-blue-400 rounded text-xs cursor-pointer hover:bg-blue-50 hover:border-solid transition-colors',
+}
+
+// ====== Section: Monthly Goals ======
+
+function GoalsSection({ goals, onChange }) {
+  const update = (id, field, val) => {
+    onChange(goals.map(g => g.id === id ? { ...g, [field]: val } : g))
+  }
+  const remove = (id) => onChange(goals.filter(g => g.id !== id))
+  const add = () => onChange([...goals, { id: genId(), description: '', keyResult: '', weight: '' }])
+
+  return (
+    <div>
+      <table className="w-full" style={{ tableLayout: 'fixed' }}>
+        <thead>
+          <tr className="border-b-2 border-gray-200">
+            <th className="text-left text-xs font-medium text-gray-500 py-2 px-1 w-8">#</th>
+            <th className="text-left text-xs font-medium text-gray-500 py-2 px-1 w-[40%]">目标描述</th>
+            <th className="text-left text-xs font-medium text-gray-500 py-2 px-1 w-[40%]">关键结果</th>
+            <th className="text-left text-xs font-medium text-gray-500 py-2 px-1 w-[70px]">权重</th>
+            <th className="w-8"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {goals.map((g, i) => (
+            <tr key={g.id} className="border-b border-gray-100">
+              <td className="text-center text-sm font-semibold text-gray-700 py-1.5">{i + 1}</td>
+              <td className="py-1.5 px-1">
+                <textarea className={S.textarea} placeholder="描述本月核心目标..." value={g.description} onChange={e => update(g.id, 'description', e.target.value)} rows={1} />
+              </td>
+              <td className="py-1.5 px-1">
+                <textarea className={S.textarea} placeholder="可量化的关键结果..." value={g.keyResult} onChange={e => update(g.id, 'keyResult', e.target.value)} rows={1} />
+              </td>
+              <td className="py-1.5 px-1">
+                <input className={S.input} placeholder="如 30%" value={g.weight} onChange={e => update(g.id, 'weight', e.target.value)} />
+              </td>
+              <td className="text-center py-1.5">
+                <button className={S.btnDel} onClick={() => remove(g.id)}>×</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button className={S.btnAdd} onClick={add}>＋ 添加目标</button>
+    </div>
+  )
+}
+
+// ====== Section: Weekly Plans ======
+
+function WeeksSection({ weeks, weekRanges, onChange }) {
+  const updateTask = (wi, tid, field, val) => {
+    const next = weeks.map((w, i) => {
+      if (i !== wi) return w
+      return { ...w, tasks: w.tasks.map(t => t.id === tid ? { ...t, [field]: val } : t) }
+    })
+    onChange(next)
+  }
+  const removeTask = (wi, tid) => {
+    const next = weeks.map((w, i) => {
+      if (i !== wi) return w
+      return { ...w, tasks: w.tasks.filter(t => t.id !== tid) }
+    })
+    onChange(next)
+  }
+  const addTask = (wi) => {
+    const next = weeks.map((w, i) => {
+      if (i !== wi) return w
+      return { ...w, tasks: [...w.tasks, { id: genId(), priority: 'P1', content: '', owner: '', deadline: weekRanges[wi]?.end || '', status: '未开始' }] }
+    })
+    onChange(next)
+  }
+  const updateReview = (wi, field, val) => {
+    const next = weeks.map((w, i) => {
+      if (i !== wi) return w
+      return { ...w, review: { ...w.review, [field]: val } }
+    })
+    onChange(next)
+  }
+
+  return (
+    <div className="space-y-4">
+      {WEEK_NAMES.map((name, wi) => {
+        const week = weeks[wi] || { tasks: [], review: { done: '', improve: '', next: '' } }
+        const range = weekRanges[wi] || { start: '', end: '' }
+        const rangeStr = range.start ? `${range.start} — ${range.end}` : ''
+
+        return (
+          <div key={wi} className="border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3 font-semibold text-sm text-gray-800">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />
+              {name}
+              {rangeStr && <span className="text-xs text-gray-400 font-normal">({rangeStr})</span>}
+            </div>
+
+            {/* Task table */}
+            <table className="w-full" style={{ tableLayout: 'fixed' }}>
+              <thead>
+                <tr className="border-b-2 border-gray-200">
+                  <th className="text-left text-xs font-medium text-gray-500 py-2 px-1 w-[70px]">优先级</th>
+                  <th className="text-left text-xs font-medium text-gray-500 py-2 px-1">任务内容</th>
+                  <th className="text-left text-xs font-medium text-gray-500 py-2 px-1 w-[90px]">负责人</th>
+                  <th className="text-left text-xs font-medium text-gray-500 py-2 px-1 w-[95px]">截止日</th>
+                  <th className="text-left text-xs font-medium text-gray-500 py-2 px-1 w-[100px]">状态</th>
+                  <th className="w-8"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {week.tasks.map(t => (
+                  <tr key={t.id} className="border-b border-gray-100">
+                    <td className="py-1.5 px-1">
+                      <select className={S.select} value={t.priority} onChange={e => updateTask(wi, t.id, 'priority', e.target.value)}>
+                        <option value="P0">P0</option>
+                        <option value="P1">P1</option>
+                        <option value="P2">P2</option>
+                      </select>
+                    </td>
+                    <td className="py-1.5 px-1">
+                      <textarea className={S.textarea} placeholder="任务描述..." value={t.content} onChange={e => updateTask(wi, t.id, 'content', e.target.value)} rows={1} />
+                    </td>
+                    <td className="py-1.5 px-1">
+                      <input className={S.input} placeholder="负责人" value={t.owner} onChange={e => updateTask(wi, t.id, 'owner', e.target.value)} />
+                    </td>
+                    <td className="py-1.5 px-1">
+                      <input className={S.input} value={t.deadline} onChange={e => updateTask(wi, t.id, 'deadline', e.target.value)} />
+                    </td>
+                    <td className="py-1.5 px-1">
+                      <select className={S.select} value={t.status} onChange={e => updateTask(wi, t.id, 'status', e.target.value)}>
+                        <option value="未开始">⬜ 未开始</option>
+                        <option value="进行中">🔄 进行中</option>
+                        <option value="已完成">✅ 已完成</option>
+                        <option value="暂停">⏸️ 暂停</option>
+                      </select>
+                    </td>
+                    <td className="text-center py-1.5">
+                      <button className={S.btnDel} onClick={() => removeTask(wi, t.id)}>×</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button className={S.btnAdd} onClick={() => addTask(wi)}>＋ 添加任务</button>
+
+            {/* Week review */}
+            <div className="grid grid-cols-3 gap-3 mt-3 bg-gray-50 rounded-lg p-3">
+              <div>
+                <label className="text-[11px] font-medium text-gray-500 block mb-1">📊 完成情况</label>
+                <textarea className={S.textarea + ' min-h-[60px]'} placeholder="本周完成情况..." value={week.review.done} onChange={e => updateReview(wi, 'done', e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-gray-500 block mb-1">🔧 待改进</label>
+                <textarea className={S.textarea + ' min-h-[60px]'} placeholder="需要改进的地方..." value={week.review.improve} onChange={e => updateReview(wi, 'improve', e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-gray-500 block mb-1">👉 下周重点</label>
+                <textarea className={S.textarea + ' min-h-[60px]'} placeholder="下周重点关注..." value={week.review.next} onChange={e => updateReview(wi, 'next', e.target.value)} />
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ====== Section: Reading Notes (inline in the plan) ======
+
+function ReadingSection({ entries, onChange }) {
+  const update = (id, field, val) => {
+    onChange(entries.map(e => e.id === id ? { ...e, [field]: val } : e))
+  }
+  const remove = (id) => onChange(entries.filter(e => e.id !== id))
+  const add = () => onChange([...entries, { id: genId(), title: '', author: '', status: '已读完', rating: '', notes: '' }])
+
+  return (
+    <div className="space-y-3">
+      {entries.map(e => (
+        <div key={e.id} className="border border-gray-200 rounded-lg p-4 relative">
+          <button className="absolute top-2 right-2 w-6 h-6 text-red-500 text-lg cursor-pointer rounded flex items-center justify-center hover:bg-red-50" onClick={() => remove(e.id)}>×</button>
+          <div className="flex gap-3 mb-3 flex-wrap">
+            <div className="flex-1 min-w-[120px]">
+              <label className="text-[11px] font-medium text-gray-500 block mb-0.5">📖 书名</label>
+              <input className={S.input} placeholder="书名..." value={e.title} onChange={ev => update(e.id, 'title', ev.target.value)} />
+            </div>
+            <div className="flex-1 min-w-[100px]">
+              <label className="text-[11px] font-medium text-gray-500 block mb-0.5">✍️ 作者</label>
+              <input className={S.input} placeholder="作者..." value={e.author} onChange={ev => update(e.id, 'author', ev.target.value)} />
+            </div>
+            <div className="w-[100px]">
+              <label className="text-[11px] font-medium text-gray-500 block mb-0.5">进度</label>
+              <select className={S.select + ' w-full'} value={e.status} onChange={ev => update(e.id, 'status', ev.target.value)}>
+                <option value="想读">📚 想读</option>
+                <option value="在读">📖 在读</option>
+                <option value="已读完">✅ 已读完</option>
+              </select>
+            </div>
+            <div className="w-[90px]">
+              <label className="text-[11px] font-medium text-gray-500 block mb-0.5">评分</label>
+              <select className={S.select + ' w-full'} value={e.rating} onChange={ev => update(e.id, 'rating', ev.target.value)}>
+                <option value="">-</option>
+                <option value="⭐">⭐</option>
+                <option value="⭐⭐">⭐⭐</option>
+                <option value="⭐⭐⭐">⭐⭐⭐</option>
+                <option value="⭐⭐⭐⭐">⭐⭐⭐⭐</option>
+                <option value="⭐⭐⭐⭐⭐">⭐⭐⭐⭐⭐</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-medium text-gray-500 block mb-0.5">📝 笔记 / 摘录 / 读后感</label>
+            <textarea className={S.textarea + ' min-h-[80px]'} placeholder="记录你的读书笔记、金句摘录、读后感悟..." value={e.notes} onChange={ev => update(e.id, 'notes', ev.target.value)} />
+          </div>
+        </div>
+      ))}
+      <button className={S.btnAdd} onClick={add}>＋ 添加书籍</button>
+    </div>
+  )
+}
+
+// ====== Section: Dynamic items (Other / Summary) ======
+
+function DynamicSection({ items, onChange }) {
+  const update = (id, field, val) => {
+    onChange(items.map(it => it.id === id ? { ...it, [field]: val } : it))
+  }
+  const remove = (id) => onChange(items.filter(it => it.id !== id))
+  const add = (emoji = '📋', label = '') => onChange([...items, { id: genId(), emoji, label, value: '' }])
+
+  return (
+    <div className="space-y-3">
+      {items.map(it => (
+        <div key={it.id} className="flex gap-2 items-start">
+          <div className="flex-1">
+            <div className="flex items-center gap-1.5 mb-1 text-sm font-semibold text-gray-700">
+              <span>{it.emoji}</span>
+              <input className={S.input + ' !w-auto !min-w-[120px] font-semibold'} value={it.label} onChange={e => update(it.id, 'label', e.target.value)} placeholder="标签名..." />
+            </div>
+            <textarea className={S.textarea + ' min-h-[60px]'} placeholder="内容..." value={it.value} onChange={e => update(it.id, 'value', e.target.value)} />
+          </div>
+          <button className={S.btnDel + ' mt-6'} onClick={() => remove(it.id)}>×</button>
+        </div>
+      ))}
+      <button className={S.btnAdd} onClick={() => add()}>＋ 添加条目</button>
+    </div>
+  )
+}
+
+// ====== Card wrapper ======
+
+function Card({ badge, title, children, collapsed, onToggle }) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div
+        className="flex items-center gap-2 px-6 py-4 cursor-pointer select-none hover:bg-gray-50 transition-colors"
+        onClick={onToggle}
+        style={collapsed ? {} : { borderBottom: '2px solid #0366d6' }}
+      >
+        <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-medium">{badge}</span>
+        <span className="text-base font-semibold text-gray-900">{title}</span>
+        <span className="ml-auto text-gray-400 text-sm transition-transform" style={{ transform: collapsed ? 'rotate(-90deg)' : 'none' }}>
+          <ChevronDown size={16} />
+        </span>
+      </div>
+      {!collapsed && (
+        <div className="px-6 py-5">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ====== Main Page ======
 
 export default function Plans() {
-  const [plans, setPlans] = useState([])
+  const [monthKey, setMonthKey] = useState(getDefaultMonthKey)
+  const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [expandedMonths, setExpandedMonths] = useState({})
-  const [expandedWeeks, setExpandedWeeks] = useState({})
-  const [showForm, setShowForm] = useState(false)
-  const [editingPlan, setEditingPlan] = useState(null)
-  const [filterStatus, setFilterStatus] = useState('all')
-  const [viewMode, setViewMode] = useState('hierarchy')
+  const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState('')
+  const [collapsedCards, setCollapsedCards] = useState({})
+  const saveTimer = useRef(null)
+  const dataRef = useRef(null)
 
-  const fetchPlans = useCallback(async () => {
+  const weekRanges = computeWeekRanges(monthKey)
+
+  // Fetch data for current month
+  const fetchData = useCallback(async (key) => {
+    setLoading(true)
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.user) { setPlans([]); setLoading(false); return }
-    const { data } = await supabase
-      .from('plans')
-      .select('*')
+    if (!session?.user) { setData(null); setLoading(false); return }
+
+    const { data: row } = await supabase
+      .from('monthly_plan_data')
+      .select('data')
       .eq('user_id', session.user.id)
-      .order('sort_order', { ascending: true })
-      .order('created_at', { ascending: false })
-    setPlans(data || [])
+      .eq('month_key', key)
+      .single()
+
+    if (row?.data) {
+      const merged = { ...DEFAULT_DATA, ...row.data }
+      // Ensure all arrays exist
+      if (!merged.goals) merged.goals = DEFAULT_DATA.goals
+      merged.weeks = WEEK_NAMES.map((_, i) => {
+        const saved = (row.data.weeks && row.data.weeks[i]) || {}
+        const def = DEFAULT_DATA.weeks[i]
+        return {
+          tasks: saved.tasks || def.tasks,
+          review: saved.review || def.review,
+        }
+      })
+      if (!merged.reading) merged.reading = DEFAULT_DATA.reading
+      if (!merged.other) merged.other = DEFAULT_DATA.other
+      if (!merged.summary) merged.summary = DEFAULT_DATA.summary
+      setData(merged)
+    } else {
+      setData(JSON.parse(JSON.stringify(DEFAULT_DATA))) // deep clone
+    }
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchPlans() }, [fetchPlans])
+  useEffect(() => {
+    fetchData(monthKey)
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
+  }, [monthKey])
 
-  const toggleMonth = (id) => {
-    setExpandedMonths(prev => ({ ...prev, [id]: !prev[id] }))
+  // Auto-save with debounce
+  const debouncedSave = useCallback((newData) => {
+    dataRef.current = newData
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    setSaveStatus('💾 保存中...')
+    saveTimer.current = setTimeout(async () => {
+      const toSave = dataRef.current
+      if (!toSave) return
+      setSaving(true)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) return
+
+        // Upsert: try insert, if conflict update
+        await supabase.from('monthly_plan_data').upsert({
+          user_id: session.user.id,
+          month_key: monthKey,
+          data: toSave,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,month_key' })
+
+        const now = new Date()
+        const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+        setSaveStatus(`💾 已保存 ${time}`)
+      } catch (err) {
+        console.error('Save error:', err)
+        setSaveStatus('⚠️ 保存失败')
+      }
+      setSaving(false)
+    }, 1000)
+  }, [monthKey])
+
+  const updateData = useCallback((newData) => {
+    setData(newData)
+    debouncedSave(newData)
+  }, [debouncedSave])
+
+  const updateSection = (section, value) => {
+    if (!data) return
+    const next = { ...data, [section]: value }
+    updateData(next)
   }
 
-  const toggleWeek = (id) => {
-    setExpandedWeeks(prev => ({ ...prev, [id]: !prev[id] }))
+  const handleMonthSwitch = async (delta) => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current)
+      // Force save current data before switching
+      const toSave = dataRef.current || data
+      if (toSave) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.user) {
+            await supabase.from('monthly_plan_data').upsert({
+              user_id: session.user.id,
+              month_key: monthKey,
+              data: toSave,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'user_id,month_key' })
+          }
+        } catch (e) { /* ignore */ }
+      }
+    }
+    setMonthKey(shiftMonth(monthKey, delta))
   }
 
-  const childrenOf = (parentId) =>
-    plans.filter(p => p.parent_id === parentId)
-      .sort((a, b) => a.sort_order - b.sort_order || new Date(a.created_at) - new Date(b.created_at))
-
-  const topLevelMonths = () =>
-    plans.filter(p => p.plan_type === 'monthly' && !p.parent_id)
-      .sort((a, b) => a.sort_order - b.sort_order || new Date(a.created_at) - new Date(b.created_at))
-
-  const standaloneWeeks = () =>
-    plans.filter(p => p.plan_type === 'weekly' && !p.parent_id)
-
-  const standaloneDailies = () =>
-    plans.filter(p => p.plan_type === 'daily' && !p.parent_id)
-
-  const cycleStatus = async (plan) => {
-    const order = ['not_started', 'in_progress', 'completed']
-    const idx = order.indexOf(plan.status)
-    const next = idx < order.length - 1 ? order[idx + 1] : order[0]
-    await supabase.from('plans').update({ status: next }).eq('id', plan.id)
-    fetchPlans()
+  const toggleCard = (id) => {
+    setCollapsedCards(prev => ({ ...prev, [id]: !prev[id] }))
   }
-
-  const deletePlan = async (id) => {
-    if (!confirm('确定要删除此计划及其所有子计划吗？')) return
-    await supabase.from('plans').delete().eq('id', id)
-    fetchPlans()
-  }
-
-  const openCreate = (parentId = null, planType = 'monthly') => {
-    setEditingPlan({ parent_id: parentId, plan_type: planType })
-    setShowForm(true)
-  }
-
-  const openEdit = (plan) => {
-    setEditingPlan(plan)
-    setShowForm(true)
-  }
-
-  const filterByStatus = (list) => {
-    if (filterStatus === 'all') return list
-    return list.filter(p => p.status === filterStatus)
-  }
-
-  // ===== Sub-components =====
-
-  const StatusBtn = ({ plan, size = 14 }) => {
-    const SIcon = STATUS_CONFIG[plan.status].icon
-    return (
-      <button
-        onClick={(e) => { e.stopPropagation(); cycleStatus(plan) }}
-        className="shrink-0 text-white/40 hover:text-white transition-colors"
-        title={STATUS_CONFIG[plan.status].label}
-      >
-        <SIcon size={size} className={STATUS_CONFIG[plan.status].color} />
-      </button>
-    )
-  }
-
-  const PriorityBadge = ({ priority }) => {
-    const p = PRIORITY_CONFIG[priority]
-    return <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${p.bg}`}>{p.label}</span>
-  }
-
-  const TagsRow = ({ tags }) => {
-    if (!tags || tags.length === 0) return null
-    return tags.slice(0, 3).map(tag => (
-      <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/[0.06] text-white/40 flex items-center gap-1">
-        <Tag size={8} />{tag}
-      </span>
-    ))
-  }
-
-  const DueDate = ({ date, status }) => {
-    if (!date) return null
-    const overdue = isOverdue(date) && status !== 'completed' && status !== 'cancelled'
-    return (
-      <span className={`flex items-center gap-1 text-[10px] ${overdue ? 'text-red-400' : 'text-white/25'}`}>
-        <Calendar size={10} />
-        {formatDate(date)}
-        {overdue && <span className="text-red-400/80">逾期</span>}
-      </span>
-    )
-  }
-
-  const ActionBtns = ({ plan, showAddChild = false }) => (
-    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-      {showAddChild && plan.plan_type === 'monthly' && (
-        <button
-          onClick={(e) => { e.stopPropagation(); openCreate(plan.id, 'weekly') }}
-          className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-          title="添加周计划"
-        >
-          <Plus size={14} />
-        </button>
-      )}
-      {showAddChild && plan.plan_type === 'weekly' && (
-        <button
-          onClick={(e) => { e.stopPropagation(); openCreate(plan.id, 'daily') }}
-          className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-          title="添加日待办"
-        >
-          <Plus size={14} />
-        </button>
-      )}
-      <button
-        onClick={(e) => { e.stopPropagation(); openEdit(plan) }}
-        className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-        title="编辑"
-      >
-        <Edit3 size={13} />
-      </button>
-      <button
-        onClick={(e) => { e.stopPropagation(); deletePlan(plan.id) }}
-        className="p-1.5 rounded-lg text-white/25 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-        title="删除"
-      >
-        <Trash2 size={13} />
-      </button>
-    </div>
-  )
-
-  // Daily todo item (simple row)
-  const DailyRow = ({ plan }) => {
-    const overdue = isOverdue(plan.due_date) && plan.status !== 'completed' && plan.status !== 'cancelled'
-    return (
-      <div className={`group flex items-center gap-2.5 px-3 py-2 rounded-lg ml-8 transition-colors hover:bg-white/[0.03] cursor-pointer
-        ${plan.status === 'completed' ? 'opacity-50' : ''}
-        ${plan.status === 'cancelled' ? 'opacity-30 line-through' : ''}
-      `} onClick={() => openEdit(plan)}>
-        <StatusBtn plan={plan} size={12} />
-        <span className={`flex-1 text-xs ${plan.status === 'completed' ? 'text-white/30' : 'text-white/70'} truncate`}>
-          {plan.title}
-        </span>
-        <PriorityBadge priority={plan.priority} />
-        <DueDate date={plan.due_date} status={plan.status} />
-        <TagsRow tags={plan.tags} />
-        <ActionBtns plan={plan} />
-      </div>
-    )
-  }
-
-  // Week plan row (within a month card)
-  const WeekRow = ({ plan, monthStatus }) => {
-    const dailies = childrenOf(plan.id)
-    const isExpanded = expandedWeeks[plan.id] ?? true
-    const completedCount = dailies.filter(d => d.status === 'completed').length
-    const totalCount = dailies.filter(d => d.status !== 'cancelled').length
-    const weekOverdue = isOverdue(plan.due_date) && plan.status !== 'completed' && plan.status !== 'cancelled'
-
-    return (
-      <div className="select-none">
-        <div
-          className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-lg ml-4 transition-colors cursor-pointer
-            ${plan.status === 'completed' ? 'opacity-50' : ''}
-            ${plan.status === 'cancelled' ? 'opacity-30 line-through' : ''}
-            hover:bg-white/[0.04]
-          `}
-          onClick={() => openEdit(plan)}
-        >
-          {/* Expand toggle for dailies */}
-          <button
-            onClick={(e) => { e.stopPropagation(); toggleWeek(plan.id) }}
-            className="p-0.5 text-white/20 hover:text-white/50 transition-colors shrink-0"
-          >
-            {dailies.length > 0 ? (
-              isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />
-            ) : (
-              <span className="w-3 block" />
-            )}
-          </button>
-
-          <StatusBtn plan={plan} size={13} />
-
-          <Layers size={12} className="text-white/25 shrink-0" />
-
-          <span className={`flex-1 text-sm ${plan.status === 'completed' ? 'text-white/35' : 'text-white/80'} truncate`}>
-            {plan.title}
-          </span>
-
-          {/* Week progress */}
-          {totalCount > 0 && (
-            <span className="text-[10px] text-white/25">
-              {completedCount}/{totalCount}
-            </span>
-          )}
-
-          <PriorityBadge priority={plan.priority} />
-          {weekOverdue && <span className="text-[10px] text-red-400/80">逾期</span>}
-          <DueDate date={plan.due_date} status={plan.status} />
-          <TagsRow tags={plan.tags} />
-
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <button
-              onClick={(e) => { e.stopPropagation(); openCreate(plan.id, 'daily') }}
-              className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-              title="添加日待办"
-            >
-              <Plus size={13} />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); openEdit(plan) }}
-              className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-            >
-              <Edit3 size={12} />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); deletePlan(plan.id) }}
-              className="p-1.5 rounded-lg text-white/25 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-            >
-              <Trash2 size={12} />
-            </button>
-          </div>
-        </div>
-
-        {/* Expanded dailies */}
-        {dailies.length > 0 && isExpanded && (
-          <div className="ml-4 mt-0.5 border-l border-white/[0.04] pl-4">
-            {filterByStatus(dailies).map(d => (
-              <DailyRow key={d.id} plan={d} />
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // Monthly goal card
-  const MonthCard = ({ plan }) => {
-    const weeks = childrenOf(plan.id)
-    const isExpanded = expandedMonths[plan.id] ?? true
-    const totalWeeks = weeks.filter(w => w.status !== 'cancelled').length
-    const completedWeeks = weeks.filter(w => w.status === 'completed').length
-    const monthOverdue = isOverdue(plan.due_date) && plan.status !== 'completed' && plan.status !== 'cancelled'
-
-    return (
-      <div className="liquid-glass rounded-2xl overflow-hidden">
-        {/* Month header */}
-        <div
-          className={`group flex items-center gap-3 px-5 py-4 cursor-pointer transition-colors hover:bg-white/[0.02]
-            ${plan.status === 'completed' ? 'opacity-60' : ''}
-            ${plan.status === 'cancelled' ? 'opacity-40' : ''}
-          `}
-          onClick={() => openEdit(plan)}
-        >
-          <button
-            onClick={(e) => { e.stopPropagation(); toggleMonth(plan.id) }}
-            className="p-0.5 text-white/25 hover:text-white/60 transition-colors shrink-0"
-          >
-            {weeks.length > 0 ? (
-              isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />
-            ) : (
-              <span className="w-4 block" />
-            )}
-          </button>
-
-          <StatusBtn plan={plan} size={16} />
-
-          <Target size={16} className="text-white/30 shrink-0" />
-
-          <div className="flex-1 min-w-0" onClick={() => openEdit(plan)}>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-base font-semibold ${plan.status === 'completed' ? 'text-white/35' : 'text-white'} ${plan.status === 'cancelled' ? 'line-through' : ''}`}>
-                {plan.title}
-              </span>
-              <PriorityBadge priority={plan.priority} />
-              {monthOverdue && <span className="text-[10px] text-red-400/80 font-medium">逾期</span>}
-              {totalWeeks > 0 && (
-                <span className="text-[10px] text-white/25">
-                  ({completedWeeks}/{totalWeeks} 周完成)
-                </span>
-              )}
-            </div>
-            {plan.description && (
-              <p className="text-xs text-white/30 mt-1 line-clamp-1">{plan.description}</p>
-            )}
-            <div className="flex items-center gap-3 mt-1.5 text-[10px] text-white/25">
-              <DueDate date={plan.due_date} status={plan.status} />
-              <span className="flex items-center gap-1">
-                <Clock size={10} />{formatDate(plan.created_at)}
-              </span>
-              <TagsRow tags={plan.tags} />
-            </div>
-          </div>
-
-          {/* Month actions */}
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <button
-              onClick={(e) => { e.stopPropagation(); openCreate(plan.id, 'weekly') }}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-white/30 hover:text-white/70 bg-white/[0.04] hover:bg-white/[0.08] text-xs transition-colors"
-              title="添加周计划"
-            >
-              <Plus size={12} />周计划
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); openEdit(plan) }}
-              className="p-1.5 rounded-lg text-white/25 hover:text-white/70 hover:bg-white/[0.06] transition-colors"
-            >
-              <Edit3 size={13} />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); deletePlan(plan.id) }}
-              className="p-1.5 rounded-lg text-white/25 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
-        </div>
-
-        {/* Week progress bar */}
-        {totalWeeks > 0 && (
-          <div className="px-5 pb-1">
-            <div className="h-0.5 bg-white/[0.04] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-white/20 rounded-full transition-all duration-500"
-                style={{ width: `${(completedWeeks / totalWeeks) * 100}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Weeks list */}
-        {weeks.length > 0 && isExpanded && (
-          <div className="px-2 pb-2 pt-1 border-t border-white/[0.03] mt-1">
-            {filterByStatus(weeks).map(week => (
-              <WeekRow key={week.id} plan={week} monthStatus={plan.status} />
-            ))}
-          </div>
-        )}
-
-        {/* Empty state when expanded but no weeks */}
-        {weeks.length === 0 && isExpanded && (
-          <div className="px-5 pb-4 border-t border-white/[0.03] pt-3">
-            <button
-              onClick={() => openCreate(plan.id, 'weekly')}
-              className="w-full py-3 rounded-xl border border-dashed border-white/[0.06] text-white/25 text-xs hover:text-white/50 hover:border-white/[0.12] transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Plus size={12} />
-              添加周计划
-            </button>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // ===== Main render =====
-
-  const months = topLevelMonths()
-  const orphanWeeks = standaloneWeeks()
-  const orphanDailies = standaloneDailies()
 
   return (
-    <div className="py-12">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+    <div className="py-8" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif' }}>
+      {/* ===== Header ===== */}
+      <div className="bg-white border border-gray-200 rounded-lg px-6 py-4 mb-6 flex items-center justify-between shadow-sm sticky top-0 z-40">
         <div className="flex items-center gap-3">
-          <Target size={24} className="text-white/60" />
-          <h1 className="text-3xl font-bold text-white">计划管理</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value)}
-            className="text-xs bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-1.5 text-white/60 outline-none cursor-pointer"
-          >
-            <option value="all">全部状态</option>
-            <option value="not_started">未开始</option>
-            <option value="in_progress">进行中</option>
-            <option value="completed">已完成</option>
-            <option value="cancelled">已取消</option>
-          </select>
+          <span className="text-xl">📅</span>
           <button
-            onClick={() => openCreate(null, 'monthly')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors"
+            onClick={() => handleMonthSwitch(-1)}
+            className="w-7 h-7 border border-gray-200 rounded bg-white text-gray-500 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-500 hover:border-blue-400 flex items-center justify-center"
+          >◀</button>
+          <span className="text-lg font-semibold text-blue-500">{formatMonthLabel(monthKey)}</span>
+          <button
+            onClick={() => handleMonthSwitch(1)}
+            className="w-7 h-7 border border-gray-200 rounded bg-white text-gray-500 text-sm cursor-pointer hover:bg-blue-50 hover:text-blue-500 hover:border-blue-400 flex items-center justify-center"
+          >▶</button>
+          <span className="text-sm text-gray-500">月度计划</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-500">{saveStatus || '💾 已保存'}</span>
+          <button
+            onClick={() => { if (saveTimer.current) { clearTimeout(saveTimer.current) }; debouncedSave(data) }}
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-500 text-white text-sm rounded-md hover:bg-blue-600 transition-colors font-medium"
           >
-            <Plus size={16} />
-            新建月度目标
+            <Save size={14} />保存
           </button>
         </div>
       </div>
 
-      {/* Content */}
+      {/* ===== Content ===== */}
       {loading ? (
-        <div className="text-white/40 text-sm text-center py-20">加载中...</div>
-      ) : plans.length === 0 ? (
-        <div className="liquid-glass rounded-3xl p-20 text-center">
-          <Target size={40} className="text-white/15 mx-auto mb-4" />
-          <p className="text-white/30 text-sm mb-4">还没有任何计划</p>
-          <button
-            onClick={() => openCreate(null, 'monthly')}
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors"
-          >
-            <Plus size={16} />
-            创建第一个月度目标
-          </button>
+        <div className="text-gray-400 text-sm text-center py-20">加载中...</div>
+      ) : !data ? (
+        <div className="bg-white border border-gray-200 rounded-lg p-20 text-center">
+          <span className="text-4xl block mb-4">📅</span>
+          <p className="text-gray-400 text-sm">请先登录</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Monthly goals with their weeks and dailies */}
-          {filterByStatus(months).map(month => (
-            <MonthCard key={month.id} plan={month} />
-          ))}
+        <div className="space-y-5">
+          {/* 1. Goals */}
+          <Card badge="1" title="本月主题 / 核心目标" collapsed={collapsedCards['goals']} onToggle={() => toggleCard('goals')}>
+            <GoalsSection goals={data.goals} onChange={v => updateSection('goals', v)} />
+          </Card>
 
-          {/* Orphan weeks (not under any month) */}
-          {orphanWeeks.length > 0 && (
-            <section>
-              <h2 className="text-sm font-medium text-white/30 mb-2 flex items-center gap-2">
-                <Layers size={14} /> 未归属的周计划
-              </h2>
-              <div className="liquid-glass rounded-2xl p-2 space-y-0.5">
-                {filterByStatus(orphanWeeks).map(week => (
-                  <WeekRow key={week.id} plan={week} />
-                ))}
-              </div>
-            </section>
-          )}
+          {/* 2. Weeks */}
+          <Card badge="2" title="周度计划" collapsed={collapsedCards['weeks']} onToggle={() => toggleCard('weeks')}>
+            <WeeksSection weeks={data.weeks} weekRanges={weekRanges} onChange={v => updateSection('weeks', v)} />
+          </Card>
 
-          {/* Orphan dailies */}
-          {orphanDailies.length > 0 && (
-            <section>
-              <h2 className="text-sm font-medium text-white/30 mb-2 flex items-center gap-2">
-                <ListTodo size={14} /> 未归属的日待办
-              </h2>
-              <div className="liquid-glass rounded-2xl p-2 space-y-0.5">
-                {filterByStatus(orphanDailies).map(d => (
-                  <DailyRow key={d.id} plan={d} />
-                ))}
-              </div>
-            </section>
-          )}
+          {/* 3. Reading */}
+          <Card badge="3" title="读书笔记" collapsed={collapsedCards['reading']} onToggle={() => toggleCard('reading')}>
+            <ReadingSection entries={data.reading} onChange={v => updateSection('reading', v)} />
+          </Card>
+
+          {/* 4. Other */}
+          <Card badge="4" title="其他事项" collapsed={collapsedCards['other']} onToggle={() => toggleCard('other')}>
+            <DynamicSection items={data.other} onChange={v => updateSection('other', v)} />
+          </Card>
+
+          {/* 5. Summary */}
+          <Card badge="5" title="月末总结" collapsed={collapsedCards['summary']} onToggle={() => toggleCard('summary')}>
+            <DynamicSection items={data.summary} onChange={v => updateSection('summary', v)} />
+          </Card>
         </div>
       )}
-
-      {/* Create/Edit Modal */}
-      {showForm && <PlanFormModal plan={editingPlan} onClose={() => { setShowForm(false); setEditingPlan(null) }} onSaved={fetchPlans} plans={plans} />}
-    </div>
-  )
-}
-
-// ===== Form Modal =====
-
-function PlanFormModal({ plan, onClose, onSaved, plans }) {
-  const isEdit = !!plan?.id
-  const [title, setTitle] = useState(plan?.title || '')
-  const [description, setDescription] = useState(plan?.description || '')
-  const [planType, setPlanType] = useState(plan?.plan_type || 'monthly')
-  const [priority, setPriority] = useState(plan?.priority || 'medium')
-  const [dueDate, setDueDate] = useState(plan?.due_date || '')
-  const [status, setStatus] = useState(plan?.status || 'not_started')
-  const [tagInput, setTagInput] = useState('')
-  const [tags, setTags] = useState(plan?.tags || [])
-  const [parentId, setParentId] = useState(plan?.parent_id || null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  const availableParents = plans.filter(p =>
-    p.id !== plan?.id &&
-    ((planType === 'weekly' && p.plan_type === 'monthly') ||
-     (planType === 'daily' && p.plan_type === 'weekly'))
-  )
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!title.trim()) return
-    setSaving(true)
-    setError('')
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        setError('请先登录后再操作')
-        setSaving(false)
-        return
-      }
-
-      const payload = {
-        title: title.trim(),
-        description: description.trim(),
-        plan_type: planType,
-        priority,
-        due_date: dueDate || null,
-        status,
-        tags,
-        parent_id: parentId,
-        sort_order: 0,
-        user_id: session.user.id,
-      }
-
-      if (isEdit) {
-        const { error: updateErr } = await supabase.from('plans').update(payload).eq('id', plan.id)
-        if (updateErr) throw updateErr
-      } else {
-        const { error: insertErr } = await supabase.from('plans').insert(payload)
-        if (insertErr) throw insertErr
-      }
-
-      onSaved()
-      onClose()
-    } catch (err) {
-      setError(err.message || '保存失败，请重试')
-      setSaving(false)
-    }
-  }
-
-  const addTag = () => {
-    const t = tagInput.trim()
-    if (t && !tags.includes(t)) setTags([...tags, t])
-    setTagInput('')
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        className="relative w-full max-w-lg liquid-glass rounded-2xl p-6 max-h-[85vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-white">
-            {isEdit ? '编辑计划' : '新建计划'}
-          </h3>
-          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-xs text-white/40 mb-1.5 block">标题</label>
-            <input
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="计划标题..."
-              maxLength={200}
-              autoFocus
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-white/20 outline-none focus:border-white/20 transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs text-white/40 mb-1.5 block">描述</label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="详细描述..."
-              rows={3}
-              maxLength={1000}
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-white/20 outline-none resize-none focus:border-white/20 transition-colors"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-white/40 mb-1.5 block">类型</label>
-              <select
-                value={planType}
-                onChange={e => { setPlanType(e.target.value); setParentId(null) }}
-                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none cursor-pointer"
-              >
-                <option value="monthly">月度目标</option>
-                <option value="weekly">周计划</option>
-                <option value="daily">日待办</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-white/40 mb-1.5 block">优先级</label>
-              <select
-                value={priority}
-                onChange={e => setPriority(e.target.value)}
-                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none cursor-pointer"
-              >
-                <option value="low">低</option>
-                <option value="medium">中</option>
-                <option value="high">高</option>
-                <option value="urgent">紧急</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-white/40 mb-1.5 block">状态</label>
-              <select
-                value={status}
-                onChange={e => setStatus(e.target.value)}
-                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none cursor-pointer"
-              >
-                <option value="not_started">未开始</option>
-                <option value="in_progress">进行中</option>
-                <option value="completed">已完成</option>
-                <option value="cancelled">已取消</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-white/40 mb-1.5 block">截止日期</label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={e => setDueDate(e.target.value)}
-                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:border-white/20 transition-colors [color-scheme:dark]"
-              />
-            </div>
-          </div>
-
-          {planType !== 'monthly' && availableParents.length > 0 && (
-            <div>
-              <label className="text-xs text-white/40 mb-1.5 block">
-                所属{planType === 'weekly' ? '月度目标' : '周计划'}
-              </label>
-              <select
-                value={parentId || ''}
-                onChange={e => setParentId(e.target.value || null)}
-                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white outline-none cursor-pointer"
-              >
-                <option value="">无</option>
-                {availableParents.map(p => (
-                  <option key={p.id} value={p.id}>{p.title} ({TYPE_LABELS[p.plan_type]})</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label className="text-xs text-white/40 mb-1.5 block">标签</label>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {tags.map(t => (
-                <span key={t} className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white/[0.08] text-white/70">
-                  {t}
-                  <button type="button" onClick={() => setTags(tags.filter(tag => tag !== t))} className="text-white/30 hover:text-white/80">
-                    <X size={10} />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={tagInput}
-                onChange={e => setTagInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
-                placeholder="输入标签后按回车..."
-                maxLength={30}
-                className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-white/20 outline-none focus:border-white/20 transition-colors"
-              />
-              <button type="button" onClick={addTag} className="px-4 py-2.5 rounded-xl bg-white/[0.06] text-white/60 text-sm hover:bg-white/[0.10] transition-colors">
-                <Plus size={16} />
-              </button>
-            </div>
-          </div>
-
-          {error && (
-            <div className="px-4 py-2.5 rounded-xl bg-red-400/10 border border-red-400/20 text-red-400 text-xs">
-              {error}
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl bg-white/[0.04] text-white/50 text-sm hover:bg-white/[0.08] transition-colors">
-              取消
-            </button>
-            <button type="submit" disabled={saving || !title.trim()} className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 disabled:opacity-30 transition-colors">
-              {saving ? '保存中...' : (isEdit ? '更新' : '创建')}
-            </button>
-          </div>
-        </form>
-      </div>
     </div>
   )
 }
