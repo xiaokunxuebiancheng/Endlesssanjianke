@@ -95,6 +95,18 @@ function statusSelectCls(status) {
       return base + ' bg-white/[0.04] border-white/[0.08] text-white/50 hover:bg-white/[0.06]'
   }
 }
+
+function prioritySelectCls(priority) {
+  const base = 'border rounded-lg px-2 py-1.5 text-sm outline-none cursor-pointer transition-colors'
+  switch (priority) {
+    case 'P0':
+      return base + ' bg-red-500/15 border-red-400/30 text-red-300'
+    case 'P1':
+      return base + ' bg-amber-500/15 border-amber-400/30 text-amber-300'
+    default:
+      return base + ' bg-white/[0.04] border-white/[0.08] text-white/50 hover:bg-white/[0.06]'
+  }
+}
 const btnAddCls = 'inline-flex items-center gap-1 px-3 py-1.5 mt-2 bg-white/[0.04] text-white/50 border border-dashed border-white/[0.10] rounded-lg text-xs cursor-pointer hover:bg-white/[0.08] hover:text-white/80 hover:border-white/20 transition-colors'
 const btnDelCls = 'w-6 h-6 border-none bg-transparent text-red-400 text-lg cursor-pointer rounded flex items-center justify-center hover:bg-red-400/10 hover:text-red-300 transition-colors'
 const thCls = 'text-left text-[11px] font-medium text-white/30 py-2 px-1'
@@ -197,10 +209,10 @@ function WeeksSection({ weeks, weekRanges, onChange }) {
                 {week.tasks.map(t => (
                   <tr key={t.id} className={tableBorder}>
                     <td className="py-1.5 px-1">
-                      <select className={selectCls} value={t.priority} onChange={e => updateTask(wi, t.id, 'priority', e.target.value)}>
-                        <option value="P0">P0</option>
-                        <option value="P1">P1</option>
-                        <option value="P2">P2</option>
+                      <select className={prioritySelectCls(t.priority)} value={t.priority} onChange={e => updateTask(wi, t.id, 'priority', e.target.value)}>
+                        <option value="P0" style={{ background: '#1e1e28', color: '#f87171' }}>P0</option>
+                        <option value="P1" style={{ background: '#1e1e28', color: '#f59e0b' }}>P1</option>
+                        <option value="P2" style={{ background: '#1e1e28', color: '#999' }}>P2</option>
                       </select>
                     </td>
                     <td className="py-1.5 px-1">
