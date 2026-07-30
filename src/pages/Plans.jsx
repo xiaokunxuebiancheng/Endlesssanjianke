@@ -213,11 +213,12 @@ function WeeksSection({ weeks, weekRanges, onChange }) {
                       <input className={inputCls} value={t.deadline} onChange={e => updateTask(wi, t.id, 'deadline', e.target.value)} />
                     </td>
                     <td className="py-1.5 px-1">
-                      <select className={statusSelectCls(t.status)} value={t.status} onChange={e => updateTask(wi, t.id, 'status', e.target.value)}>
-                        <option value="未开始">未开始</option>
-                        <option value="进行中">进行中</option>
-                        <option value="已完成">已完成</option>
-                        <option value="暂停">暂停</option>
+                      <select className={statusSelectCls(t.status)} value={t.status} onChange={e => updateTask(wi, t.id, 'status', e.target.value)}
+                        style={{ background: t.status === '已完成' ? 'rgba(16,185,129,0.15)' : t.status === '进行中' ? 'rgba(245,158,11,0.15)' : t.status === '暂停' ? 'rgba(239,68,68,0.1)' : 'rgba(30,30,40,0.95)' }}>
+                        <option value="未开始" style={{ background: '#1e1e28', color: '#999' }}>未开始</option>
+                        <option value="进行中" style={{ background: '#1e1e28', color: '#f59e0b' }}>进行中</option>
+                        <option value="已完成" style={{ background: '#1e1e28', color: '#10b981' }}>已完成</option>
+                        <option value="暂停" style={{ background: '#1e1e28', color: '#ef4444' }}>暂停</option>
                       </select>
                     </td>
                     <td className="text-center py-1.5">
