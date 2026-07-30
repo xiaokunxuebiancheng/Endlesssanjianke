@@ -38,7 +38,7 @@ export default function Login() {
           {isSignUp ? '注册' : '登录'}
         </h1>
         <p className="text-sm text-white/40 text-center mb-8">
-          {isSignUp ? '创建账号加入博客' : '登录以管理博客'}
+          {isSignUp ? '创建账号加入写记录' : '登录以管理写记录'}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">

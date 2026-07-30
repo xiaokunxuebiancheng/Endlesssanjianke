@@ -39,7 +39,7 @@ export default function BlogList() {
 
   return (
     <div className="py-12">
-      <h1 className="text-3xl font-bold text-white mb-8">博客</h1>
+      <h1 className="text-3xl font-bold text-white mb-8">写记录</h1>
 
       {allTags.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-8">

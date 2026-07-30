@@ -8,7 +8,7 @@ import MusicPlayer from './MusicPlayer.jsx'
 const navLinks = [
   { to: '/', label: '首页' },
   { to: '/about', label: '关于' },
-  { to: '/blog', label: '博客' },
+  { to: '/blog', label: '写记录' },
   { to: '/gallery', label: '画廊' },
   { to: '/guestbook', label: '留言板' },
   { to: '/plans', label: '计划' },
@@ -77,7 +77,7 @@ export default function BlogLayout() {
             <>
               <Link to="/admin/write"
                 className={`text-sm transition-colors ${location.pathname === '/admin/write' ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
-                写文章
+                文档总结
               </Link>
               <Link to="/admin/users"
                 className={`text-sm transition-colors ${location.pathname.startsWith('/admin') && location.pathname !== '/admin/write' ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
@@ -118,7 +118,7 @@ export default function BlogLayout() {
           ))}
           {authReady && user?.email === ADMIN_EMAIL && (
             <>
-              <Link to="/admin/write" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">写文章</Link>
+              <Link to="/admin/write" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">文档总结</Link>
               <Link to="/admin/users" onClick={() => setMobileOpen(false)} className="text-white/60 text-sm">用户管理</Link>
             </>
           )}

@@ -1,0 +1,1075 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>月度计划表</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card-bg: #fff;
+    --border: #e1e4e8;
+    --text: #24292e;
+    --text-secondary: #586069;
+    --accent: #0366d6;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding-bottom: 100px;
+  }
+  .header {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 16px 40px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .header h1 { font-size: 22px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .month-nav { display: flex; align-items: center; gap: 4px; }
+  .btn-nav {
+    width: 28px; height: 28px; border: 1px solid var(--border); background: #fff;
+    border-radius: 4px; font-size: 14px; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; color: var(--text-secondary);
+    transition: all 0.15s;
+  }
+  .btn-nav:hover { background: #f0f7ff; color: var(--accent); border-color: var(--accent); }
+  .month-input {
+    font-size: 20px; font-weight: 600; border: none; background: transparent;
+    color: var(--accent); width: 120px; outline: none; text-align: center;
+    border-bottom: 2px dashed var(--border); padding: 2px 4px;
+  }
+  .month-input:focus { border-bottom-color: var(--accent); }
+  .header-btns { display: flex; align-items: center; gap: 10px; }
+  .btn-save {
+    padding: 10px 20px; background: var(--accent); color: #fff; border: none;
+    border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: 500;
+    display: flex; align-items: center; gap: 6px; transition: background 0.15s;
+  }
+  .btn-save:hover { background: var(--accent-hover); }
+  .btn-export {
+    padding: 10px 24px; background: #2ea44f; color: #fff; border: none;
+    border-radius: 6px; font-size: 15px; cursor: pointer; font-weight: 500;
+    display: flex; align-items: center; gap: 6px; transition: background 0.15s;
+  }
+  .btn-export:hover { background: #22863a; }
+  .save-indicator {
+    font-size: 12px; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .save-indicator.saved { color: #2ea44f; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; display: flex; flex-direction: column; gap: 24px; }
+
+  .card {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px 28px;
+  }
+  .card-title {
+    font-size: 17px; font-weight: 600; margin-bottom: 16px;
+    padding-bottom: 10px; border-bottom: 2px solid var(--accent);
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none;
+  }
+  .card-title .badge {
+    background: var(--accent); color: #fff; font-size: 12px;
+    padding: 2px 10px; border-radius: 12px; font-weight: 500;
+  }
+  .card-title .toggle-icon {
+    margin-left: auto; font-size: 14px; transition: transform 0.2s;
+    opacity: 0.5; width: 24px; height: 24px; display: flex;
+    align-items: center; justify-content: center;
+  }
+  .card-title .toggle-icon:hover { opacity: 1; }
+  .card.collapsed .card-body { display: none; }
+  .card.collapsed .card-title { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+  .card.collapsed .card-title .toggle-icon { transform: rotate(-90deg); }
+
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th {
+    text-align: left; font-size: 13px; font-weight: 500;
+    color: var(--text-secondary); padding: 8px 6px; border-bottom: 2px solid var(--border);
+  }
+  td { padding: 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  td.del-cell { width: 36px; padding: 6px 0; text-align: center; vertical-align: middle; }
+
+  input, textarea, select {
+    font-family: inherit; font-size: 14px; border: 1px solid transparent;
+    border-radius: 4px; padding: 6px 8px; width: 100%; background: transparent;
+    transition: border-color 0.15s, background 0.15s; resize: vertical; color: var(--text);
+  }
+  input:hover, textarea:hover { background: #f6f8fa; }
+  input:focus, textarea:focus, select:focus {
+    outline: none; border-color: var(--accent); background: #fff;
+    box-shadow: 0 0 0 3px rgba(3,102,214,0.1);
+  }
+  textarea { min-height: 38px; overflow-y: hidden; resize: none; }
+  select { cursor: pointer; background: #fff; border: 1px solid var(--border); padding: 4px 6px; width: auto; }
+
+  /* Buttons */
+  .btn-add {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 6px 14px; margin-top: 10px;
+    background: #fff; color: var(--accent); border: 1px dashed var(--accent);
+    border-radius: 6px; font-size: 13px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-add:hover { background: #f0f7ff; border-style: solid; }
+  .btn-del {
+    width: 24px; height: 24px; border: none; background: transparent;
+    color: #cb2431; font-size: 18px; cursor: pointer; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s; padding: 0; line-height: 1;
+  }
+  .btn-del:hover { background: #ffeef0; }
+
+  /* Week */
+  .week-block {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 20px; margin-bottom: 16px;
+  }
+  .week-block:last-child { margin-bottom: 0; }
+  .week-header {
+    font-weight: 600; font-size: 15px; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none;
+  }
+  .week-header .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); display: inline-block; }
+  .week-header .week-toggle {
+    margin-left: auto; font-size: 12px; opacity: 0.5; transition: transform 0.2s;
+    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  }
+  .week-header .week-toggle:hover { opacity: 1; }
+  .week-date { font-size: 13px; color: var(--text-secondary); font-weight: 400; }
+  .week-block.collapsed .week-body { display: none; }
+  .week-block.collapsed .week-header { margin-bottom: 0; }
+  .week-block.collapsed .week-toggle { transform: rotate(-90deg); }
+  .review-area {
+    margin-top: 12px; background: #fafbfc; border-radius: 6px;
+    padding: 12px 14px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+  }
+  .review-item label { font-size: 12px; font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+
+  /* Goal table */
+  .goal-table th:nth-child(1) { width: 36px; }
+  .goal-table th:nth-child(2) { width: 40%; }
+  .goal-table th:nth-child(3) { width: 40%; }
+  .goal-table th:nth-child(4) { width: 70px; }
+  .goal-table th:nth-child(5) { width: 36px; }
+
+  /* Task table */
+  .task-table th:nth-child(1) { width: 70px; }
+  .task-table th:nth-child(2) { }
+  .task-table th:nth-child(3) { width: 90px; }
+  .task-table th:nth-child(4) { width: 95px; }
+  .task-table th:nth-child(5) { width: 100px; }
+  .task-table th:nth-child(6) { width: 36px; }
+
+  /* Other & Summary dynamic items */
+  .dynamic-list { display: flex; flex-direction: column; gap: 10px; }
+  .dynamic-item { display: flex; gap: 8px; align-items: flex-start; }
+  .dynamic-item .item-input { flex: 1; }
+  .dynamic-item .btn-del { margin-top: 4px; flex-shrink: 0; }
+
+  /* Reading entry */
+  .reading-entry {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 20px; margin-bottom: 12px;
+    position: relative;
+  }
+  .reading-entry:last-child { margin-bottom: 0; }
+  .reading-entry .entry-header {
+    display: flex; gap: 12px; align-items: flex-end; margin-bottom: 10px;
+  }
+  .reading-entry .entry-header .field { display: flex; flex-direction: column; gap: 2px; }
+  .reading-entry .entry-header .field label {
+    font-size: 11px; font-weight: 500; color: var(--text-secondary);
+  }
+  .reading-entry .entry-header .field-book { flex: 1; }
+  .reading-entry .entry-header .field-author { flex: 1; }
+  .reading-entry .entry-header .field-status { width: 100px; flex: none; }
+  .reading-entry .entry-header .field-rating { width: 80px; flex: none; }
+  .reading-entry .entry-header input { font-weight: 500; }
+  .reading-entry .entry-notes { margin-top: 6px; }
+  .reading-entry .entry-notes label {
+    font-size: 11px; font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 2px;
+  }
+  .reading-entry .btn-del-entry {
+    position: absolute; top: 10px; right: 10px;
+    width: 26px; height: 26px; border: none; background: transparent;
+    color: #cb2431; font-size: 20px; cursor: pointer; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .reading-entry .btn-del-entry:hover { background: #ffeef0; }
+
+  /* Section label row for other/summary */
+  .section-label { font-size: 14px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; top: 20px; right: 20px;
+    background: #2ea44f; color: #fff; padding: 12px 24px;
+    border-radius: 6px; font-size: 14px; z-index: 999;
+    opacity: 0; transform: translateY(-10px); transition: all 0.3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media print {
+    body { background: #fff; }
+    .header { position: static; box-shadow: none; }
+    .btn-export, .btn-add, .btn-del { display: none; }
+    .container { gap: 12px; }
+    .card { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>
+    <span>📅</span>
+    <div class="month-nav">
+      <button class="btn-nav" onclick="switchMonth(-1)" title="上个月">◀</button>
+      <input class="month-input" value="2026年7月" id="monthTitle" placeholder="输入月份" onchange="onMonthChange()">
+      <button class="btn-nav" onclick="switchMonth(1)" title="下个月">▶</button>
+    </div>
+    <span style="font-size:14px;font-weight:400;color:var(--text-secondary)">月度计划</span>
+  </h1>
+  <div class="header-btns">
+    <span class="save-indicator" id="saveIndicator">💾 已保存</span>
+    <button class="btn-save" onclick="manualSave()">💾 保存</button>
+    <button class="btn-export" onclick="exportToExcel()">📥 导出 Excel</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="container">
+
+  <!-- 一、本月核心目标 -->
+  <div class="card" id="card-goals">
+    <div class="card-title" onclick="toggleCard('card-goals')">
+      <span class="badge">1</span> 本月主题 / 核心目标
+      <span class="toggle-icon">▼</span>
+    </div>
+    <div class="card-body">
+      <table class="goal-table">
+        <thead>
+          <tr><th>#</th><th>目标描述</th><th>关键结果</th><th>权重</th><th></th></tr>
+        </thead>
+        <tbody id="goalBody"></tbody>
+      </table>
+      <button class="btn-add" onclick="addGoalRow()">＋ 添加目标</button>
+    </div>
+  </div>
+
+  <!-- 二、周度计划 -->
+  <div class="card" id="card-weeks">
+    <div class="card-title" onclick="toggleCard('card-weeks')">
+      <span class="badge">2</span> 周度计划
+      <span class="toggle-icon">▼</span>
+    </div>
+    <div class="card-body">
+      <div id="weekContainer"></div>
+    </div>
+  </div>
+
+  <!-- 三、读书笔记 -->
+  <div class="card" id="card-reading">
+    <div class="card-title" onclick="toggleCard('card-reading')">
+      <span class="badge">3</span> 读书笔记
+      <span class="toggle-icon">▼</span>
+    </div>
+    <div class="card-body">
+      <div id="readingContainer"></div>
+      <button class="btn-add" onclick="addReadingEntry()">＋ 添加书籍</button>
+    </div>
+  </div>
+
+  <!-- 四、其他事项 -->
+  <div class="card" id="card-other">
+    <div class="card-title" onclick="toggleCard('card-other')">
+      <span class="badge">4</span> 其他事项
+      <span class="toggle-icon">▼</span>
+    </div>
+    <div class="card-body">
+      <div id="otherContainer"></div>
+    </div>
+  </div>
+
+  <!-- 五、月末总结 -->
+  <div class="card" id="card-summary">
+    <div class="card-title" onclick="toggleCard('card-summary')">
+      <span class="badge">5</span> 月末总结
+      <span class="toggle-icon">▼</span>
+    </div>
+    <div class="card-body">
+      <div id="summaryContainer"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ========== Counters ==========
+let goalCounter = 0;
+let weekTaskCounters = [0, 0, 0, 0, 0];
+let readingCounter = 0;
+let otherCounter = 0;
+let summaryCounter = 0;
+
+// ========== 1. Goals ==========
+function addGoalRow() {
+  goalCounter++;
+  const id = goalCounter;
+  const tbody = document.getElementById('goalBody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td style="text-align:center;font-weight:600">${id}</td>
+    <td><textarea placeholder="描述本月核心目标..." data-key="goal-${id}-desc"></textarea></td>
+    <td><textarea placeholder="可量化的关键结果..." data-key="goal-${id}-kr"></textarea></td>
+    <td><input type="text" placeholder="如 30%" data-key="goal-${id}-weight"></td>
+    <td class="del-cell"><button class="btn-del" onclick="deleteRow(this, 'goal')" title="删除">×</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function renumberGoals() {
+  const rows = document.querySelectorAll('#goalBody tr');
+  rows.forEach((tr, i) => {
+    const num = i + 1;
+    tr.querySelector('td:first-child').textContent = num;
+    // Update data-keys
+    tr.querySelectorAll('[data-key]').forEach(el => {
+      el.dataset.key = el.dataset.key.replace(/goal-\d+-/, `goal-${num}-`);
+    });
+  });
+  goalCounter = rows.length;
+}
+
+// ========== 2. Weeks ==========
+const weekNames = ['第一周', '第二周', '第三周', '第四周', '第五周'];
+
+// Week ranges initialized with defaults, updated dynamically on month switch
+let weekRanges = [
+  ['7/1', '7/5'], ['7/7', '7/11'], ['7/14', '7/18'], ['7/21', '7/25'], ['7/28', '7/31']
+];
+
+function addWeekTaskRow(wi) {
+  weekTaskCounters[wi]++;
+  const ti = weekTaskCounters[wi];
+  const tbody = document.getElementById(`week-${wi}-body`);
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><select data-key="week-${wi}-task-${ti}-priority">
+      <option value="P0">P0</option>
+      <option value="P1" selected>P1</option>
+      <option value="P2">P2</option>
+    </select></td>
+    <td><textarea placeholder="任务描述..." data-key="week-${wi}-task-${ti}-content"></textarea></td>
+    <td><input type="text" placeholder="负责人" data-key="week-${wi}-task-${ti}-owner"></td>
+    <td><input type="text" value="${weekRanges[wi][1]}" data-key="week-${wi}-task-${ti}-deadline"></td>
+    <td><select data-key="week-${wi}-task-${ti}-status">
+      <option value="未开始">⬜ 未开始</option>
+      <option value="进行中">🔄 进行中</option>
+      <option value="已完成">✅ 已完成</option>
+      <option value="暂停">⏸️ 暂停</option>
+    </select></td>
+    <td class="del-cell"><button class="btn-del" onclick="deleteRow(this, 'week-${wi}')" title="删除">×</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+const weekContainer = document.getElementById('weekContainer');
+weekNames.forEach((name, wi) => {
+  const block = document.createElement('div');
+  block.className = 'week-block';
+  block.id = 'week-block-' + wi;
+  block.innerHTML = `
+    <div class="week-header" onclick="toggleWeek('week-block-${wi}')">
+      <span class="dot"></span> ${name}
+      <span class="week-date">(${weekRanges[wi][0]} — ${weekRanges[wi][1]})</span>
+      <span class="week-toggle">▼</span>
+    </div>
+    <div class="week-body">
+      <table class="task-table">
+        <thead>
+          <tr><th>优先级</th><th>任务内容</th><th>负责人</th><th>截止日</th><th>状态</th><th></th></tr>
+        </thead>
+        <tbody id="week-${wi}-body"></tbody>
+      </table>
+      <button class="btn-add" onclick="addWeekTaskRow(${wi})">＋ 添加任务</button>
+      <div class="review-area">
+        <div class="review-item">
+          <label>📊 完成情况</label>
+          <textarea placeholder="本周完成情况..." data-key="week-${wi}-review-done"></textarea>
+        </div>
+        <div class="review-item">
+          <label>🔧 待改进</label>
+          <textarea placeholder="需要改进的地方..." data-key="week-${wi}-review-improve"></textarea>
+        </div>
+        <div class="review-item">
+          <label>👉 下周重点</label>
+          <textarea placeholder="下周重点关注..." data-key="week-${wi}-review-next"></textarea>
+        </div>
+      </div>
+    </div>
+  `;
+  weekContainer.appendChild(block);
+});
+
+// ========== 3. Reading Notes ==========
+function addReadingEntry(bookTitle, author, status, rating) {
+  readingCounter++;
+  const id = readingCounter;
+  const container = document.getElementById('readingContainer');
+  const div = document.createElement('div');
+  div.className = 'reading-entry';
+  div.innerHTML = `
+    <button class="btn-del-entry" onclick="this.parentElement.remove()" title="删除">×</button>
+    <div class="entry-header">
+      <div class="field field-book">
+        <label>📖 书名</label>
+        <input type="text" placeholder="书名..." value="${bookTitle || ''}" data-key="reading-${id}-title">
+      </div>
+      <div class="field field-author">
+        <label>✍️ 作者</label>
+        <input type="text" placeholder="作者..." value="${author || ''}" data-key="reading-${id}-author">
+      </div>
+      <div class="field field-status">
+        <label>进度</label>
+        <select data-key="reading-${id}-status">
+          <option value="想读" ${status === '想读' ? 'selected' : ''}>📚 想读</option>
+          <option value="在读" ${status === '在读' ? 'selected' : ''}>📖 在读</option>
+          <option value="已读完" ${(!status || status === '已读完') ? 'selected' : ''}>✅ 已读完</option>
+        </select>
+      </div>
+      <div class="field field-rating">
+        <label>评分</label>
+        <select data-key="reading-${id}-rating">
+          <option value="" ${!rating ? 'selected' : ''}>-</option>
+          <option value="⭐" ${rating === '⭐' ? 'selected' : ''}>⭐</option>
+          <option value="⭐⭐" ${rating === '⭐⭐' ? 'selected' : ''}>⭐⭐</option>
+          <option value="⭐⭐⭐" ${rating === '⭐⭐⭐' ? 'selected' : ''}>⭐⭐⭐</option>
+          <option value="⭐⭐⭐⭐" ${rating === '⭐⭐⭐⭐' ? 'selected' : ''}>⭐⭐⭐⭐</option>
+          <option value="⭐⭐⭐⭐⭐" ${rating === '⭐⭐⭐⭐⭐' ? 'selected' : ''}>⭐⭐⭐⭐⭐</option>
+        </select>
+      </div>
+    </div>
+    <div class="entry-notes">
+      <label>📝 笔记 / 摘录 / 读后感</label>
+      <textarea placeholder="记录你的读书笔记、金句摘录、读后感悟..." style="min-height:80px" data-key="reading-${id}-notes"></textarea>
+    </div>
+  `;
+  container.appendChild(div);
+}
+
+// ========== 4. Other Items ==========
+const otherDefaults = [
+  { emoji: '📋', label: '待办 / 备忘' },
+  { emoji: '⚠️', label: '风险 / 依赖' },
+  { emoji: '📚', label: '学习 / 成长' },
+  { emoji: '📝', label: '备注' }
+];
+
+function addOtherItem(label, emoji) {
+  otherCounter++;
+  const id = otherCounter;
+  const container = document.getElementById('otherContainer');
+  const div = document.createElement('div');
+  div.className = 'dynamic-item';
+  div.innerHTML = `
+    <div class="item-input">
+      <div class="section-label" data-emoji="${emoji}">${emoji} <input type="text" value="${label}" placeholder="标签名..." style="width:auto;min-width:120px;font-weight:600" data-key="other-${id}-label"></div>
+      <textarea placeholder="内容..." style="min-height:60px" data-key="other-${id}-value"></textarea>
+    </div>
+    <button class="btn-del" onclick="this.parentElement.remove()" title="删除">×</button>
+  `;
+  container.appendChild(div);
+}
+
+function initOtherDefaults() {
+  otherDefaults.forEach(d => addOtherItem(d.label, d.emoji));
+}
+
+// ========== 5. Summary Items ==========
+const summaryDefaults = [
+  { emoji: '✅', label: '本月已完成' },
+  { emoji: '❌', label: '未完成及原因' },
+  { emoji: '💡', label: '经验与改进' },
+  { emoji: '🎯', label: '下月重点方向' }
+];
+
+function addSummaryItem(label, emoji) {
+  summaryCounter++;
+  const id = summaryCounter;
+  const container = document.getElementById('summaryContainer');
+  const div = document.createElement('div');
+  div.className = 'dynamic-item';
+  div.innerHTML = `
+    <div class="item-input">
+      <div class="section-label" data-emoji="${emoji}">${emoji} <input type="text" value="${label}" placeholder="标签名..." style="width:auto;min-width:120px;font-weight:600" data-key="summary-${id}-label"></div>
+      <textarea placeholder="内容..." style="min-height:80px" data-key="summary-${id}-value"></textarea>
+    </div>
+    <button class="btn-del" onclick="this.parentElement.remove()" title="删除">×</button>
+  `;
+  container.appendChild(div);
+}
+
+function initSummaryDefaults() {
+  summaryDefaults.forEach(d => addSummaryItem(d.label, d.emoji));
+}
+
+// ========== Collapse / Expand ==========
+function toggleCard(cardId) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  card.classList.toggle('collapsed');
+  saveCollapseState();
+}
+
+function toggleWeek(weekId) {
+  const week = document.getElementById(weekId);
+  if (!week) return;
+  week.classList.toggle('collapsed');
+  saveCollapseState();
+}
+
+function saveCollapseState() {
+  const collapsed = [];
+  document.querySelectorAll('.card.collapsed').forEach(c => collapsed.push(c.id));
+  document.querySelectorAll('.week-block.collapsed').forEach(w => collapsed.push(w.id));
+  localStorage.setItem('monthly-plan-collapsed', JSON.stringify(collapsed));
+}
+
+function loadCollapseState() {
+  try {
+    const raw = localStorage.getItem('monthly-plan-collapsed');
+    if (!raw) return;
+    const collapsed = JSON.parse(raw);
+    collapsed.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('collapsed');
+    });
+  } catch (e) {}
+}
+
+// ========== Delete Row (for tables) ==========
+function deleteRow(btn, section) {
+  btn.closest('tr').remove();
+  if (section === 'goal') renumberGoals();
+}
+
+// ========== Month Utilities ==========
+function parseMonth(title) {
+  const m = title.match(/(\d{4})\s*年\s*(\d{1,2})\s*月/);
+  if (m) return { year: parseInt(m[1]), month: parseInt(m[2]) };
+  return null;
+}
+
+function formatMonth(year, month) {
+  return year + '年' + month + '月';
+}
+
+function computeWeekRanges(year, month) {
+  const ranges = [];
+  const daysInMonth = new Date(year, month, 0).getDate(); // month is 1-based here, but JS Date uses 0-based
+  const weekStarts = [1];
+  // Approximate 5 weeks
+  if (daysInMonth <= 28) {
+    weekStarts.push(8, 15, 22);
+  } else {
+    weekStarts.push(8, 15, 22, 29);
+  }
+  for (let i = 0; i < weekStarts.length; i++) {
+    const start = weekStarts[i];
+    const end = (i < weekStarts.length - 1) ? weekStarts[i + 1] - 1 : daysInMonth;
+    ranges.push([month + '/' + start, month + '/' + end]);
+  }
+  // Pad to 5 weeks for template
+  while (ranges.length < 5) {
+    ranges.push(['', '']);
+  }
+  return ranges;
+}
+
+function getCurrentMonth() {
+  return document.getElementById('monthTitle').value.trim() || '2026年7月';
+}
+
+// ========== Clear & Rebuild ==========
+function clearForm() {
+  document.getElementById('goalBody').innerHTML = '';
+  document.getElementById('readingContainer').innerHTML = '';
+  document.getElementById('otherContainer').innerHTML = '';
+  document.getElementById('summaryContainer').innerHTML = '';
+  weekNames.forEach((_, wi) => {
+    const tbody = document.getElementById(`week-${wi}-body`);
+    if (tbody) tbody.innerHTML = '';
+  });
+  goalCounter = 0;
+  weekTaskCounters = [0, 0, 0, 0, 0];
+  readingCounter = 0;
+  otherCounter = 0;
+  summaryCounter = 0;
+}
+
+function buildFromData(saved) {
+  const goalCount = (saved && saved.structure.goalCount) || 3;
+  for (let i = 0; i < goalCount; i++) addGoalRow();
+
+  const taskCounts = (saved && saved.structure.weekTaskCounts) || [4, 4, 4, 4, 4];
+  weekNames.forEach((_, wi) => {
+    for (let i = 0; i < (taskCounts[wi] || 4); i++) addWeekTaskRow(wi);
+  });
+
+  const readingEntries = saved && saved.structure.readingEntries;
+  if (readingEntries && readingEntries.length > 0) {
+    readingEntries.forEach(e => addReadingEntry(e.title, e.author, e.status, e.rating));
+  } else {
+    addReadingEntry();
+  }
+
+  const otherItems = saved && saved.structure.otherItems;
+  if (otherItems && otherItems.length > 0) {
+    otherItems.forEach(item => addOtherItem(item.label, item.emoji));
+  } else {
+    initOtherDefaults();
+  }
+
+  const summaryItems = saved && saved.structure.summaryItems;
+  if (summaryItems && summaryItems.length > 0) {
+    summaryItems.forEach(item => addSummaryItem(item.label, item.emoji));
+  } else {
+    initSummaryDefaults();
+  }
+
+  // Update week date labels
+  updateWeekLabels();
+
+  if (saved && saved.values) fillValues(saved.values);
+
+  // Auto-size textareas after content is filled
+  setTimeout(resizeAllTextareas, 50);
+}
+
+function updateWeekLabels() {
+  const month = getCurrentMonth();
+  const parsed = parseMonth(month);
+  if (!parsed) return;
+  weekRanges = computeWeekRanges(parsed.year, parsed.month);
+  weekNames.forEach((name, wi) => {
+    const block = document.querySelectorAll('.week-block')[wi];
+    if (!block) return;
+    const dateSpan = block.querySelector('.week-date');
+    if (dateSpan && weekRanges[wi] && weekRanges[wi][0]) {
+      dateSpan.textContent = '(' + weekRanges[wi][0] + ' — ' + weekRanges[wi][1] + ')';
+    } else if (dateSpan) {
+      dateSpan.textContent = '';
+    }
+    // Update default deadline in task rows
+    const tbody = document.getElementById(`week-${wi}-body`);
+    if (tbody && weekRanges[wi] && weekRanges[wi][1]) {
+      tbody.querySelectorAll('input[data-key*="deadline"]').forEach(input => {
+        if (!input.dataset.userEdited || input.value === '') {
+          input.value = weekRanges[wi][1];
+        }
+      });
+    }
+  });
+}
+
+// ========== Month Switching ==========
+let switchingMonth = false;
+
+async function switchMonth(delta) {
+  if (switchingMonth) return;
+  switchingMonth = true;
+
+  // Save current data first
+  await saveToServer();
+
+  const current = getCurrentMonth();
+  const parsed = parseMonth(current);
+  if (!parsed) { switchingMonth = false; return; }
+
+  let newMonth = parsed.month + delta;
+  let newYear = parsed.year;
+  if (newMonth > 12) { newMonth = 1; newYear++; }
+  if (newMonth < 1) { newMonth = 12; newYear--; }
+
+  const newTitle = formatMonth(newYear, newMonth);
+  document.getElementById('monthTitle').value = newTitle;
+
+  await loadMonth(newTitle);
+  switchingMonth = false;
+}
+
+async function onMonthChange() {
+  if (switchingMonth) return;
+  switchingMonth = true;
+  await saveToServer();
+  const newTitle = getCurrentMonth();
+  await loadMonth(newTitle);
+  switchingMonth = false;
+}
+
+async function loadMonth(monthTitle) {
+  clearForm();
+  const saved = await loadFromServer(monthTitle);
+  if (saved) {
+    document.getElementById('monthTitle').value = saved.monthTitle || monthTitle;
+    buildFromData(saved);
+  } else {
+    buildFromData(null);
+  }
+  const indicator = document.getElementById('saveIndicator');
+  indicator.textContent = '💾 已保存';
+  indicator.className = 'save-indicator saved';
+}
+
+// ========== Initialize ==========
+// Register event listeners early so they always work
+document.addEventListener('input', debounceSave);
+document.addEventListener('input', autoResize);
+document.addEventListener('change', debounceSave);
+
+async function init() {
+  const month = getCurrentMonth();
+  const parsed = parseMonth(month);
+  if (parsed) weekRanges = computeWeekRanges(parsed.year, parsed.month);
+
+  const saved = await loadFromServer(month);
+  if (saved) {
+    document.getElementById('monthTitle').value = saved.monthTitle || month;
+    buildFromData(saved);
+  } else {
+    buildFromData(null);
+  }
+}
+
+// ========== Auto-resize textareas ==========
+function autoResize(e) {
+  if (e.target.tagName === 'TEXTAREA') {
+    e.target.style.height = 'auto';
+    e.target.style.height = e.target.scrollHeight + 'px';
+  }
+}
+
+function resizeAllTextareas() {
+  document.querySelectorAll('textarea').forEach(ta => {
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  });
+}
+
+// ========== Save / Load ==========
+const API_BASE = 'http://localhost:3000';
+
+function collectSaveData() {
+  const values = {};
+  document.querySelectorAll('[data-key]').forEach(el => {
+    if (el.tagName === 'SELECT') values[el.dataset.key] = el.value;
+    else values[el.dataset.key] = el.value || '';
+  });
+
+  const readingEntries = [];
+  document.querySelectorAll('#readingContainer .reading-entry').forEach(div => {
+    readingEntries.push({
+      title: div.querySelector('input[data-key*="title"]')?.value || '',
+      author: div.querySelector('input[data-key*="author"]')?.value || '',
+      status: div.querySelector('select[data-key*="status"]')?.value || '已读完',
+      rating: div.querySelector('select[data-key*="rating"]')?.value || ''
+    });
+  });
+
+  const otherItems = [];
+  document.querySelectorAll('#otherContainer .dynamic-item').forEach(div => {
+    const labelInput = div.querySelector('input[data-key*="label"]');
+    const emoji = div.querySelector('.section-label')?.dataset?.emoji || '📋';
+    otherItems.push({
+      emoji: emoji,
+      label: labelInput?.value || ''
+    });
+  });
+
+  const summaryItems = [];
+  document.querySelectorAll('#summaryContainer .dynamic-item').forEach(div => {
+    const labelInput = div.querySelector('input[data-key*="label"]');
+    const emoji = div.querySelector('.section-label')?.dataset?.emoji || '✅';
+    summaryItems.push({
+      emoji: emoji,
+      label: labelInput?.value || ''
+    });
+  });
+
+  return {
+    monthTitle: document.getElementById('monthTitle').value,
+    structure: {
+      goalCount: document.querySelectorAll('#goalBody tr').length,
+      weekTaskCounts: weekNames.map((_, wi) =>
+        document.querySelectorAll(`#week-${wi}-body tr`).length
+      ),
+      readingEntries: readingEntries,
+      otherItems: otherItems,
+      summaryItems: summaryItems
+    },
+    values: values
+  };
+}
+
+async function saveToServer() {
+  const data = collectSaveData();
+  try {
+    const res = await fetch(API_BASE + '/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (result.success) return true;
+    throw new Error(result.error || '保存失败');
+  } catch (e) {
+    console.error('Save error:', e);
+    return false;
+  }
+}
+
+async function loadFromServer(month) {
+  try {
+    const res = await fetch(API_BASE + '/api/load?month=' + encodeURIComponent(month));
+    const data = await res.json();
+    if (data.found) return data;
+    return null;
+  } catch (e) {
+    console.error('Load error:', e);
+    return null;
+  }
+}
+
+function fillValues(values) {
+  if (!values) return;
+  Object.entries(values).forEach(([key, val]) => {
+    const el = document.querySelector(`[data-key="${key}"]`);
+    if (!el) return;
+    if (el.tagName === 'SELECT') {
+      el.value = val;
+    } else {
+      el.value = val;
+    }
+  });
+}
+
+let saveTimer = null;
+function debounceSave() {
+  clearTimeout(saveTimer);
+  const indicator = document.getElementById('saveIndicator');
+  indicator.textContent = '💾 保存中...';
+  indicator.className = 'save-indicator';
+  saveTimer = setTimeout(async () => {
+    const ok = await saveToServer();
+    const now = new Date();
+    const time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    if (ok) {
+      indicator.textContent = '💾 已保存 ' + time;
+      indicator.className = 'save-indicator saved';
+    } else {
+      indicator.textContent = '⚠️ 保存失败 ' + time;
+      indicator.className = 'save-indicator';
+    }
+  }, 800);
+}
+
+async function manualSave() {
+  clearTimeout(saveTimer);
+  const indicator = document.getElementById('saveIndicator');
+  indicator.textContent = '💾 保存中...';
+  indicator.className = 'save-indicator';
+  const ok = await saveToServer();
+  const now = new Date();
+  const time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+  if (ok) {
+    indicator.textContent = '💾 已保存 ' + time;
+    indicator.className = 'save-indicator saved';
+    showToast('保存成功！');
+  } else {
+    indicator.textContent = '⚠️ 保存失败 ' + time;
+    indicator.className = 'save-indicator';
+    showToast('保存失败，请确认后台服务已启动');
+  }
+}
+
+// ========== Export ==========
+function getVal(key) {
+  const el = document.querySelector(`[data-key="${key}"]`);
+  if (!el) return '';
+  if (el.tagName === 'SELECT') return el.value;
+  return el.value || '';
+}
+
+function collectData() {
+  const rows = [];
+  const month = document.getElementById('monthTitle').value.trim();
+  rows.push({ A: '月份', B: month, C: '', D: '', E: '' });
+  rows.push({ A: '', B: '', C: '', D: '', E: '' });
+
+  // Section 1: Goals
+  rows.push({ A: '一、本月主题 / 核心目标', B: '', C: '', D: '', E: '' });
+  rows.push({ A: '序号', B: '目标描述', C: '关键结果', D: '权重', E: '' });
+  document.querySelectorAll('#goalBody tr').forEach((tr, i) => {
+    const num = i + 1;
+    rows.push({
+      A: num,
+      B: tr.querySelector(`[data-key^="goal-"][data-key$="-desc"]`)?.value || '',
+      C: tr.querySelector(`[data-key^="goal-"][data-key$="-kr"]`)?.value || '',
+      D: tr.querySelector(`[data-key^="goal-"][data-key$="-weight"]`)?.value || '',
+      E: ''
+    });
+  });
+  rows.push({ A: '', B: '', C: '', D: '', E: '' });
+
+  // Section 2: Weeks
+  rows.push({ A: '二、周度计划', B: '', C: '', D: '', E: '' });
+  weekNames.forEach((name, wi) => {
+    rows.push({ A: `${name} (${weekRanges[wi][0]} — ${weekRanges[wi][1]})`, B: '', C: '', D: '', E: '' });
+    rows.push({ A: '优先级', B: '任务内容', C: '负责人', D: '截止日', E: '状态' });
+    const taskRows = document.querySelectorAll(`#week-${wi}-body tr`);
+    taskRows.forEach(tr => {
+      rows.push({
+        A: tr.querySelector('select[data-key*="priority"]')?.value || '',
+        B: tr.querySelector('textarea[data-key*="content"]')?.value || '',
+        C: tr.querySelector('input[data-key*="owner"]')?.value || '',
+        D: tr.querySelector('input[data-key*="deadline"]')?.value || '',
+        E: tr.querySelector('select[data-key*="status"]')?.value || ''
+      });
+    });
+    rows.push({
+      A: '周复盘',
+      B: '完成情况: ' + getVal(`week-${wi}-review-done`),
+      C: '待改进: ' + getVal(`week-${wi}-review-improve`),
+      D: '下周重点: ' + getVal(`week-${wi}-review-next`),
+      E: ''
+    });
+    rows.push({ A: '', B: '', C: '', D: '', E: '' });
+  });
+
+  // Section 3: Reading Notes
+  rows.push({ A: '三、读书笔记', B: '', C: '', D: '', E: '' });
+  rows.push({ A: '书名', B: '作者', C: '进度', D: '评分', E: '笔记' });
+  document.querySelectorAll('#readingContainer .reading-entry').forEach(div => {
+    rows.push({
+      A: div.querySelector('input[data-key*="title"]')?.value || '',
+      B: div.querySelector('input[data-key*="author"]')?.value || '',
+      C: div.querySelector('select[data-key*="status"]')?.value || '',
+      D: div.querySelector('select[data-key*="rating"]')?.value || '',
+      E: div.querySelector('textarea[data-key*="notes"]')?.value || ''
+    });
+  });
+  rows.push({ A: '', B: '', C: '', D: '', E: '' });
+
+  // Section 4: Other
+  rows.push({ A: '四、其他事项', B: '', C: '', D: '', E: '' });
+  document.querySelectorAll('#otherContainer .dynamic-item').forEach(div => {
+    const label = div.querySelector('input[data-key*="label"]')?.value || '';
+    const value = div.querySelector('textarea[data-key*="value"]')?.value || '';
+    rows.push({ A: label, B: value, C: '', D: '', E: '' });
+  });
+  rows.push({ A: '', B: '', C: '', D: '', E: '' });
+
+  // Section 5: Summary
+  rows.push({ A: '五、月末总结', B: '', C: '', D: '', E: '' });
+  document.querySelectorAll('#summaryContainer .dynamic-item').forEach(div => {
+    const label = div.querySelector('input[data-key*="label"]')?.value || '';
+    const value = div.querySelector('textarea[data-key*="value"]')?.value || '';
+    rows.push({ A: label, B: value, C: '', D: '', E: '' });
+  });
+
+  return rows;
+}
+
+function exportToExcel() {
+  try {
+    if (typeof XLSX === 'undefined') {
+      throw new Error('XLSX 库未加载，请检查网络连接');
+    }
+    const data = collectData();
+    const aoa = data.map(r => [r.A || '', r.B || '', r.C || '', r.D || '', r.E || '']);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 22 }, { wch: 50 }, { wch: 30 }, { wch: 15 }, { wch: 12 }];
+
+    const merges = [];
+    data.forEach((r, i) => {
+      const a = String(r.A || '');
+      if (['一、', '二、', '三、', '四、', '五、'].some(s => a.startsWith(s))) {
+        merges.push({ s: { r: i, c: 0 }, e: { r: i, c: 4 } });
+      }
+      if (a === '月份') {
+        merges.push({ s: { r: i, c: 1 }, e: { r: i, c: 4 } });
+      }
+    });
+    ws['!merges'] = merges;
+    XLSX.utils.book_append_sheet(wb, ws, '月度计划');
+
+    const month = document.getElementById('monthTitle').value.trim() || '月度计划';
+    XLSX.writeFile(wb, `${month}.xlsx`);
+    showToast('导出成功！');
+  } catch (e) {
+    // Fallback: download as CSV
+    alert('Excel 导出失败: ' + e.message + '\n\n将改为下载 CSV 文件（可用 Excel 打开）');
+    fallbackCSV();
+  }
+}
+
+function fallbackCSV() {
+  const data = collectData();
+  const bom = '﻿';
+  const csv = bom + data.map(r =>
+    [r.A || '', r.B || '', r.C || '', r.D || '', r.E || '']
+      .map(c => '"' + c.replace(/"/g, '""').replace(/\n/g, ' ') + '"')
+      .join(',')
+  ).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const month = document.getElementById('monthTitle').value.trim() || '月度计划';
+  a.download = `${month}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('已下载 CSV 文件（可用 Excel 打开）');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// Boot
+loadCollapseState();
+const indicator = document.getElementById('saveIndicator');
+indicator.textContent = '⏳ 加载中...';
+indicator.className = 'save-indicator';
+init().then(() => {
+  indicator.textContent = '💾 已保存';
+  indicator.className = 'save-indicator saved';
+}).catch(() => {
+  indicator.textContent = '⚠️ 离线模式（后台未启动）';
+  indicator.className = 'save-indicator';
+});
+</script>
+
+</body>
+</html>
