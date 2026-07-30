@@ -348,21 +348,36 @@ export default function Plans() {
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
   }, [monthKey])
 
-  // Save immediately on page unload or tab hidden to prevent data loss
+  // Core save function — writes to Supabase immediately
+  const performSave = useCallback(async (dataToSave) => {
+    if (!dataToSave) return
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return false
+      await supabase.from('monthly_plan_data').upsert({
+        user_id: session.user.id,
+        month_key: monthKey,
+        data: dataToSave,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,month_key' })
+      const now = new Date()
+      setSaveStatus(`已保存 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
+      return true
+    } catch (err) {
+      console.error('Save error:', err)
+      setSaveStatus('保存失败')
+      return false
+    }
+  }, [monthKey])
+
+  // Save on page unload with keepalive (async won't work in beforeunload)
   useEffect(() => {
-    const doSave = () => {
+    const doKeepaliveSave = () => {
       const toSave = dataRef.current
       if (!toSave) return
-      const key = monthKey
       const url = `${supabaseUrl}/rest/v1/monthly_plan_data`
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (!session?.user) return
-        const body = JSON.stringify({
-          user_id: session.user.id,
-          month_key: key,
-          data: toSave,
-          updated_at: new Date().toISOString(),
-        })
         fetch(url, {
           method: 'POST',
           headers: {
@@ -371,47 +386,34 @@ export default function Plans() {
             'Authorization': `Bearer ${session.access_token}`,
             'Prefer': 'resolution=merge-duplicates',
           },
-          body,
+          body: JSON.stringify({
+            user_id: session.user.id,
+            month_key: monthKey,
+            data: toSave,
+            updated_at: new Date().toISOString(),
+          }),
           keepalive: true,
         })
       })
     }
 
-    const handleVisibility = () => { if (document.hidden) doSave() }
-    const handleUnload = () => doSave()
-
-    document.addEventListener('visibilitychange', handleVisibility)
-    window.addEventListener('beforeunload', handleUnload)
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibility)
-      window.removeEventListener('beforeunload', handleUnload)
+    const handleVisibility = () => {
+      if (document.hidden) { if (saveTimer.current) clearTimeout(saveTimer.current); performSave(dataRef.current) }
     }
-  }, [monthKey])
+    window.addEventListener('beforeunload', doKeepaliveSave)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('beforeunload', doKeepaliveSave)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [monthKey, performSave])
 
   const debouncedSave = useCallback((newData) => {
     dataRef.current = newData
     if (saveTimer.current) clearTimeout(saveTimer.current)
     setSaveStatus('保存中...')
-    saveTimer.current = setTimeout(async () => {
-      const toSave = dataRef.current
-      if (!toSave) return
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session?.user) return
-        await supabase.from('monthly_plan_data').upsert({
-          user_id: session.user.id,
-          month_key: monthKey,
-          data: toSave,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id,month_key' })
-        const now = new Date()
-        setSaveStatus(`已保存 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
-      } catch (err) {
-        console.error('Save error:', err)
-        setSaveStatus('保存失败')
-      }
-    }, 1000)
-  }, [monthKey])
+    saveTimer.current = setTimeout(() => performSave(dataRef.current), 1000)
+  }, [performSave])
 
   const updateData = useCallback((newData) => {
     setData(newData)
@@ -460,7 +462,7 @@ export default function Plans() {
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-white/25">{saveStatus || '已保存'}</span>
           <button
-            onClick={() => { if (saveTimer.current) { clearTimeout(saveTimer.current) }; debouncedSave(data) }}
+            onClick={() => { if (saveTimer.current) clearTimeout(saveTimer.current); performSave(data) }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors"
           >
             <Save size={14} />保存
