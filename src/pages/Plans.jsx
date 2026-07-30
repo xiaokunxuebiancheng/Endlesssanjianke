@@ -350,10 +350,17 @@ export default function Plans() {
 
   // Core save function — writes to Supabase immediately
   const performSave = useCallback(async (dataToSave) => {
-    if (!dataToSave) return
+    if (!dataToSave) {
+      setSaveStatus('无数据可保存')
+      return false
+    }
+    setSaveStatus('保存中...')
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) return false
+      if (!session?.user) {
+        setSaveStatus('未登录，无法保存')
+        return false
+      }
       await supabase.from('monthly_plan_data').upsert({
         user_id: session.user.id,
         month_key: monthKey,
