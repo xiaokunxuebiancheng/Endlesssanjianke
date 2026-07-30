@@ -19,6 +19,18 @@ body {
   background: black;
 }
 
+textarea {
+  field-sizing: content;
+  min-height: 2.5rem;
+  max-height: 50vh;
+}
+
+input[type="text"],
+input:not([type]) {
+  field-sizing: content;
+  min-width: 4rem;
+}
+
 .liquid-glass {
   background: rgba(255, 255, 255, 0.01);
   background-blend-mode: luminosity;
