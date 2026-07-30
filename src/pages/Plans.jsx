@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import { ChevronDown, Plus, Trash2, Save } from 'lucide-react'
 
 // ====== helpers ======
@@ -309,35 +309,60 @@ export default function Plans() {
   const [loading, setLoading] = useState(true)
   const [saveStatus, setSaveStatus] = useState('')
   const [collapsedCards, setCollapsedCards] = useState({})
-  const saveTimer = useRef(null)
+  const syncTimer = useRef(null)
   const dataRef = useRef(null)
+  const monthRef = useRef(monthKey)
+
+  monthRef.current = monthKey
 
   const weekRanges = computeWeekRanges(monthKey)
 
+  // Load from localStorage first (instant, always works), then sync from Supabase
   const fetchData = useCallback(async (key) => {
     setLoading(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.user) { setData(null); setLoading(false); return }
 
-    const { data: row } = await supabase
+    // 1. Load from localStorage immediately (always available)
+    const localKey = `plan_${key}`
+    const localRaw = localStorage.getItem(localKey)
+    if (localRaw) {
+      try {
+        const parsed = JSON.parse(localRaw)
+        if (parsed && parsed.goals) {
+          setData(parsed)
+          setLoading(false)
+        }
+      } catch (e) { /* ignore corrupt localStorage */ }
+    }
+
+    // 2. Try Supabase as backup source
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      if (!localRaw) setData(JSON.parse(JSON.stringify(DEFAULT_DATA)))
+      setLoading(false)
+      return
+    }
+
+    const { data: rows } = await supabase
       .from('monthly_plan_data')
       .select('data')
       .eq('user_id', session.user.id)
       .eq('month_key', key)
-      .single()
 
-    if (row?.data) {
-      const merged = { ...DEFAULT_DATA, ...row.data }
+    // If Supabase has data and it's newer/larger, use it; otherwise keep localStorage version
+    if (rows && rows.length === 1 && rows[0].data) {
+      const merged = { ...DEFAULT_DATA, ...rows[0].data }
       if (!merged.goals) merged.goals = DEFAULT_DATA.goals
       merged.weeks = WEEK_NAMES.map((_, i) => {
-        const saved = (row.data.weeks && row.data.weeks[i]) || {}
+        const saved = (rows[0].data.weeks && rows[0].data.weeks[i]) || {}
         const def = DEFAULT_DATA.weeks[i]
         return { tasks: saved.tasks || def.tasks, review: saved.review || def.review }
       })
       if (!merged.other) merged.other = DEFAULT_DATA.other
       if (!merged.summary) merged.summary = DEFAULT_DATA.summary
       setData(merged)
-    } else {
+      // Also update localStorage with Supabase version
+      localStorage.setItem(localKey, JSON.stringify(merged))
+    } else if (!localRaw) {
       setData(JSON.parse(JSON.stringify(DEFAULT_DATA)))
     }
     setLoading(false)
@@ -345,87 +370,48 @@ export default function Plans() {
 
   useEffect(() => {
     fetchData(monthKey)
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
+    return () => { if (syncTimer.current) clearTimeout(syncTimer.current) }
   }, [monthKey])
 
-  // Core save function — writes to Supabase immediately
-  const performSave = useCallback(async (dataToSave) => {
-    if (!dataToSave) {
-      setSaveStatus('无数据可保存')
-      return false
-    }
-    setSaveStatus('保存中...')
+  // Save to localStorage instantly, sync to Supabase with debounce
+  const syncToSupabase = useCallback(async () => {
+    const toSave = dataRef.current
+    if (!toSave) return
+    const key = monthRef.current
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        setSaveStatus('未登录，无法保存')
-        return false
-      }
-      await supabase.from('monthly_plan_data').upsert({
+      if (!session?.user) return
+      // Delete old rows first, then insert fresh one (avoid upsert dependency on unique constraint)
+      await supabase.from('monthly_plan_data').delete().eq('user_id', session.user.id).eq('month_key', key)
+      await supabase.from('monthly_plan_data').insert({
         user_id: session.user.id,
-        month_key: monthKey,
-        data: dataToSave,
+        month_key: key,
+        data: toSave,
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,month_key' })
-      const now = new Date()
-      setSaveStatus(`已保存 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
-      return true
-    } catch (err) {
-      console.error('Save error:', err)
-      setSaveStatus('保存失败')
-      return false
-    }
-  }, [monthKey])
-
-  // Save on page unload with keepalive (async won't work in beforeunload)
-  useEffect(() => {
-    const doKeepaliveSave = () => {
-      const toSave = dataRef.current
-      if (!toSave) return
-      const url = `${supabaseUrl}/rest/v1/monthly_plan_data`
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session?.user) return
-        fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': supabaseAnonKey,
-            'Authorization': `Bearer ${session.access_token}`,
-            'Prefer': 'resolution=merge-duplicates',
-          },
-          body: JSON.stringify({
-            user_id: session.user.id,
-            month_key: monthKey,
-            data: toSave,
-            updated_at: new Date().toISOString(),
-          }),
-          keepalive: true,
-        })
       })
+      const now = new Date()
+      setSaveStatus(`已同步 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
+    } catch (err) {
+      console.error('Sync error:', err)
+      setSaveStatus('云端同步失败（本地已保存）')
     }
+  }, [])
 
-    const handleVisibility = () => {
-      if (document.hidden) { if (saveTimer.current) clearTimeout(saveTimer.current); performSave(dataRef.current) }
-    }
-    window.addEventListener('beforeunload', doKeepaliveSave)
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => {
-      window.removeEventListener('beforeunload', doKeepaliveSave)
-      document.removeEventListener('visibilitychange', handleVisibility)
-    }
-  }, [monthKey, performSave])
-
-  const debouncedSave = useCallback((newData) => {
+  const save = useCallback((newData) => {
+    setData(newData)
     dataRef.current = newData
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    setSaveStatus('保存中...')
-    saveTimer.current = setTimeout(() => performSave(dataRef.current), 1000)
-  }, [performSave])
+    // Save to localStorage instantly (synchronous, never fails)
+    const key = monthRef.current
+    localStorage.setItem(`plan_${key}`, JSON.stringify(newData))
+    setSaveStatus('已保存到本地')
+    // Debounce sync to Supabase
+    if (syncTimer.current) clearTimeout(syncTimer.current)
+    syncTimer.current = setTimeout(() => syncToSupabase(), 2000)
+  }, [syncToSupabase])
 
   const updateData = useCallback((newData) => {
-    setData(newData)
-    debouncedSave(newData)
-  }, [debouncedSave])
+    save(newData)
+  }, [save])
 
   const updateSection = (section, value) => {
     if (!data) return
@@ -433,8 +419,9 @@ export default function Plans() {
   }
 
   const handleMonthSwitch = async (delta) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    await performSave(dataRef.current || data)
+    if (syncTimer.current) clearTimeout(syncTimer.current)
+    save(dataRef.current || data)
+    await syncToSupabase()
     setMonthKey(shiftMonth(monthKey, delta))
   }
 
@@ -458,7 +445,7 @@ export default function Plans() {
         <div className="flex items-center gap-3">
           <span className="text-[11px] text-white/25">{saveStatus || '已保存'}</span>
           <button
-            onClick={() => { if (saveTimer.current) clearTimeout(saveTimer.current); performSave(data) }}
+            onClick={() => { if (syncTimer.current) clearTimeout(syncTimer.current); save(data); syncToSupabase() }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors"
           >
             <Save size={14} />保存
