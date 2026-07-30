@@ -342,13 +342,15 @@ export default function Plans() {
       return
     }
 
-    const { data: rows } = await supabase
+    const { data: rows, error: fetchErr } = await supabase
       .from('monthly_plan_data')
       .select('data')
       .eq('user_id', session.user.id)
       .eq('month_key', key)
       .order('created_at', { ascending: false })
       .limit(1)
+
+    if (fetchErr) console.error('Fetch plans error:', JSON.stringify(fetchErr))
 
     // Use the latest Supabase row if available
     if (rows && rows.length > 0 && rows[0].data) {
@@ -386,18 +388,22 @@ export default function Plans() {
         setSaveStatus('未登录，无法云端同步')
         return
       }
-      const { error } = await supabase.from('monthly_plan_data').insert({
+      const result = await supabase.from('monthly_plan_data').insert({
         user_id: session.user.id,
         month_key: key,
         data: toSave,
         updated_at: new Date().toISOString(),
       })
-      if (error) throw error
+      if (result.error) {
+        console.error('Sync insert error:', JSON.stringify(result.error))
+        setSaveStatus(`同步失败: ${result.error.message || result.error.code || '未知错误'}`)
+        return
+      }
       const now = new Date()
       setSaveStatus(`已同步 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
     } catch (err) {
-      console.error('Sync error:', err)
-      setSaveStatus('云端同步失败（本地已保存）')
+      console.error('Sync exception:', err)
+      setSaveStatus(`同步异常: ${err.message || err}`)
     }
   }, [])
 
@@ -447,7 +453,7 @@ export default function Plans() {
           <span className="text-sm text-white/30">月度计划</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className={`text-[11px] ${saveStatus.includes('失败') || saveStatus.includes('未登录') ? 'text-red-400' : 'text-white/25'}`}>{saveStatus || '已保存'}</span>
+          <span className={`text-[11px] ${saveStatus.includes('失败') || saveStatus.includes('异常') || saveStatus.includes('未登录') ? 'text-red-400' : 'text-white/25'}`}>{saveStatus || '已保存'}</span>
           <button
             onClick={() => { if (syncTimer.current) clearTimeout(syncTimer.current); save(data); syncToSupabase() }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors"
