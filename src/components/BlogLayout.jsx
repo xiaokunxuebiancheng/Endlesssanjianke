@@ -8,11 +8,11 @@ import MusicPlayer from './MusicPlayer.jsx'
 const navLinks = [
   { to: '/', label: '首页' },
   { to: '/about', label: '关于' },
-  { to: '/blog', label: '写记录' },
   { to: '/gallery', label: '画廊' },
   { to: '/guestbook', label: '留言板' },
   { to: '/plans', label: '计划' },
   { to: '/reading', label: '读书' },
+  { to: '/blog', label: '我的文档' },
 ]
 
 export default function BlogLayout() {
@@ -74,16 +74,16 @@ export default function BlogLayout() {
             </Link>
           ))}
           {authReady && user?.email === ADMIN_EMAIL && (
-            <>
-              <Link to="/admin/write"
-                className={`text-sm transition-colors ${location.pathname === '/admin/write' ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
-                文档总结
-              </Link>
-              <Link to="/admin/users"
-                className={`text-sm transition-colors ${location.pathname.startsWith('/admin') && location.pathname !== '/admin/write' ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
-                管理
-              </Link>
-            </>
+            <Link to="/admin/write"
+              className={`text-sm transition-colors ${location.pathname === '/admin/write' ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
+              文档总结
+            </Link>
+          )}
+          {authReady && user?.email === ADMIN_EMAIL && (
+            <Link to="/admin/users"
+              className={`text-sm transition-colors ${location.pathname.startsWith('/admin') && location.pathname !== '/admin/write' ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
+              管理
+            </Link>
           )}
           <MusicPlayer />
           {authReady ? (

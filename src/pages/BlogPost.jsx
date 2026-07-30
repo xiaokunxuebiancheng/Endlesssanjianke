@@ -54,7 +54,7 @@ export default function BlogPost() {
     <div className="py-12 max-w-3xl mx-auto">
       <Link to="/blog" className="inline-flex items-center gap-1.5 text-white/40 hover:text-white text-sm mb-8 transition-colors">
         <ArrowLeft size={14} />
-        返回写记录
+        返回我的文档
       </Link>
 
       {post.cover_url && (
