@@ -81,6 +81,20 @@ const DEFAULT_DATA = {
 const inputCls = 'w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-sm text-white placeholder:text-white/15 outline-none hover:bg-white/[0.06] focus:border-white/20 focus:bg-white/[0.06] transition-colors'
 const textareaCls = inputCls + ' resize-none'
 const selectCls = 'bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1.5 text-sm text-white/80 outline-none cursor-pointer hover:bg-white/[0.06] transition-colors'
+
+function statusSelectCls(status) {
+  const base = 'border rounded-lg px-2 py-1.5 text-sm outline-none cursor-pointer transition-colors'
+  switch (status) {
+    case '已完成':
+      return base + ' bg-emerald-500/15 border-emerald-400/30 text-emerald-300'
+    case '进行中':
+      return base + ' bg-amber-500/15 border-amber-400/30 text-amber-300'
+    case '暂停':
+      return base + ' bg-red-500/10 border-red-400/20 text-red-300'
+    default:
+      return base + ' bg-white/[0.04] border-white/[0.08] text-white/50 hover:bg-white/[0.06]'
+  }
+}
 const btnAddCls = 'inline-flex items-center gap-1 px-3 py-1.5 mt-2 bg-white/[0.04] text-white/50 border border-dashed border-white/[0.10] rounded-lg text-xs cursor-pointer hover:bg-white/[0.08] hover:text-white/80 hover:border-white/20 transition-colors'
 const btnDelCls = 'w-6 h-6 border-none bg-transparent text-red-400 text-lg cursor-pointer rounded flex items-center justify-center hover:bg-red-400/10 hover:text-red-300 transition-colors'
 const thCls = 'text-left text-[11px] font-medium text-white/30 py-2 px-1'
@@ -199,7 +213,7 @@ function WeeksSection({ weeks, weekRanges, onChange }) {
                       <input className={inputCls} value={t.deadline} onChange={e => updateTask(wi, t.id, 'deadline', e.target.value)} />
                     </td>
                     <td className="py-1.5 px-1">
-                      <select className={selectCls} value={t.status} onChange={e => updateTask(wi, t.id, 'status', e.target.value)}>
+                      <select className={statusSelectCls(t.status)} value={t.status} onChange={e => updateTask(wi, t.id, 'status', e.target.value)}>
                         <option value="未开始">未开始</option>
                         <option value="进行中">进行中</option>
                         <option value="已完成">已完成</option>
