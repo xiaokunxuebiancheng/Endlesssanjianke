@@ -1,14 +1,23 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { ADMIN_EMAIL } from '../lib/constants'
-import { ArrowLeft, Eye, Tag, Calendar } from 'lucide-react'
+import { ArrowLeft, Eye, Tag, Calendar, Trash2 } from 'lucide-react'
 
 export default function BlogPost() {
   const { slug } = useParams()
+  const navigate = useNavigate()
   const [post, setPost] = useState(null)
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (!confirm('确定要删除这篇文章吗？此操作不可撤销。')) return
+    setDeleting(true)
+    await supabase.from('posts').delete().eq('slug', slug)
+    navigate('/blog')
+  }
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -64,10 +73,19 @@ export default function BlogPost() {
           </Link>
         ))}
         {isAdmin && (
-          <Link to={`/admin/write?slug=${encodeURIComponent(post.slug)}`}
-            className="px-3 py-1 rounded-full bg-white/10 text-white/60 hover:text-white text-xs transition-colors ml-auto">
-            编辑
-          </Link>
+          <div className="flex items-center gap-2 ml-auto">
+            <Link to={`/admin/write?slug=${encodeURIComponent(post.slug)}`}
+              className="px-3 py-1 rounded-full bg-white/10 text-white/60 hover:text-white text-xs transition-colors">
+              编辑
+            </Link>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="px-3 py-1 rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 text-xs transition-colors disabled:opacity-50">
+              <Trash2 size={12} className="inline mr-1" />
+              {deleting ? '删除中...' : '删除'}
+            </button>
+          </div>
         )}
         {!post.is_published && (
           <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs">草稿</span>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { ADMIN_EMAIL } from '../lib/constants'
-import { Save, ArrowLeft } from 'lucide-react'
+import { Save, ArrowLeft, Trash2 } from 'lucide-react'
 
 export default function AdminWrite() {
   const [title, setTitle] = useState('')
@@ -14,6 +14,7 @@ export default function AdminWrite() {
   const [error, setError] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
   const [checking, setChecking] = useState(true)
+  const [deleting, setDeleting] = useState(false)
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const editSlug = searchParams.get('slug')
@@ -85,6 +86,13 @@ export default function AdminWrite() {
 
     setSaving(false)
     if (publish) navigate(`/blog/${editSlug || slug}`)
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('确定要删除这篇文章吗？此操作不可撤销。')) return
+    setDeleting(true)
+    await supabase.from('posts').delete().eq('slug', editSlug)
+    navigate('/blog')
   }
 
   if (checking) return <div className="py-12 text-white/40 text-sm">加载中...</div>
@@ -167,6 +175,16 @@ export default function AdminWrite() {
         >
           发布
         </button>
+        {editSlug && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 text-sm disabled:opacity-50 transition-colors ml-auto"
+          >
+            <Trash2 size={16} />
+            {deleting ? '删除中...' : '删除'}
+          </button>
+        )}
       </div>
 
       {error && (
