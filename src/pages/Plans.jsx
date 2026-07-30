@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase'
 import { ChevronDown, Plus, Trash2, Save } from 'lucide-react'
 
 // ====== helpers ======
@@ -346,6 +346,46 @@ export default function Plans() {
   useEffect(() => {
     fetchData(monthKey)
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
+  }, [monthKey])
+
+  // Save immediately on page unload or tab hidden to prevent data loss
+  useEffect(() => {
+    const doSave = () => {
+      const toSave = dataRef.current
+      if (!toSave) return
+      const key = monthKey
+      const url = `${supabaseUrl}/rest/v1/monthly_plan_data`
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session?.user) return
+        const body = JSON.stringify({
+          user_id: session.user.id,
+          month_key: key,
+          data: toSave,
+          updated_at: new Date().toISOString(),
+        })
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseAnonKey,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Prefer': 'resolution=merge-duplicates',
+          },
+          body,
+          keepalive: true,
+        })
+      })
+    }
+
+    const handleVisibility = () => { if (document.hidden) doSave() }
+    const handleUnload = () => doSave()
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('beforeunload', handleUnload)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('beforeunload', handleUnload)
+    }
   }, [monthKey])
 
   const debouncedSave = useCallback((newData) => {
