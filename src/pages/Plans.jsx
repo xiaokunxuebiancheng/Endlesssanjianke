@@ -347,9 +347,11 @@ export default function Plans() {
       .select('data')
       .eq('user_id', session.user.id)
       .eq('month_key', key)
+      .order('created_at', { ascending: false })
+      .limit(1)
 
-    // If Supabase has data and it's newer/larger, use it; otherwise keep localStorage version
-    if (rows && rows.length === 1 && rows[0].data) {
+    // Use the latest Supabase row if available
+    if (rows && rows.length > 0 && rows[0].data) {
       const merged = { ...DEFAULT_DATA, ...rows[0].data }
       if (!merged.goals) merged.goals = DEFAULT_DATA.goals
       merged.weeks = WEEK_NAMES.map((_, i) => {
@@ -373,7 +375,7 @@ export default function Plans() {
     return () => { if (syncTimer.current) clearTimeout(syncTimer.current) }
   }, [monthKey])
 
-  // Save to localStorage instantly, sync to Supabase with debounce
+  // Save to localStorage instantly, sync to Supabase with simple insert (like blog posts & reading notes do)
   const syncToSupabase = useCallback(async () => {
     const toSave = dataRef.current
     if (!toSave) return
@@ -384,22 +386,13 @@ export default function Plans() {
         setSaveStatus('未登录，无法云端同步')
         return
       }
-      // Check if row exists for this user+month
-      const { data: rows } = await supabase
-        .from('monthly_plan_data')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .eq('month_key', key)
-      if (rows && rows.length > 0) {
-        // Update existing row
-        await supabase.from('monthly_plan_data')
-          .update({ data: toSave, updated_at: new Date().toISOString() })
-          .eq('id', rows[0].id)
-      } else {
-        // Insert new row
-        await supabase.from('monthly_plan_data')
-          .insert({ user_id: session.user.id, month_key: key, data: toSave, updated_at: new Date().toISOString() })
-      }
+      const { error } = await supabase.from('monthly_plan_data').insert({
+        user_id: session.user.id,
+        month_key: key,
+        data: toSave,
+        updated_at: new Date().toISOString(),
+      })
+      if (error) throw error
       const now = new Date()
       setSaveStatus(`已同步 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
     } catch (err) {
