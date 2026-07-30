@@ -433,19 +433,8 @@ export default function Plans() {
   }
 
   const handleMonthSwitch = async (delta) => {
-    if (saveTimer.current) { clearTimeout(saveTimer.current) }
-    const toSave = dataRef.current || data
-    if (toSave) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
-          await supabase.from('monthly_plan_data').upsert({
-            user_id: session.user.id, month_key: monthKey, data: toSave,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'user_id,month_key' })
-        }
-      } catch (e) { /* ignore */ }
-    }
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    await performSave(dataRef.current || data)
     setMonthKey(shiftMonth(monthKey, delta))
   }
 
