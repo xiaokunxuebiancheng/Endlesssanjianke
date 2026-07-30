@@ -87,7 +87,7 @@ export default function Gallery() {
   return (
     <div className="py-12">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-white">画廊</h1>
+        <h1 className="text-3xl font-bold text-white">图片</h1>
         {isAdmin && (
           <div className="flex items-center gap-3">
             {images.length > 0 && (

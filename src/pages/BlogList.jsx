@@ -10,17 +10,25 @@ export default function BlogList() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTag = searchParams.get('tag')
 
+  const [isAdmin, setIsAdmin] = useState(false)
+
   useEffect(() => {
     const fetchPosts = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      const isAdmin = session?.user?.email === ADMIN_EMAIL
+      const admin = session?.user?.email === ADMIN_EMAIL
+      setIsAdmin(admin)
+
+      if (!admin) {
+        setPosts([])
+        setLoading(false)
+        return
+      }
 
       let query = supabase
         .from('posts')
         .select('id, title, slug, excerpt, cover_url, tags, view_count, created_at')
         .order('created_at', { ascending: false })
 
-      if (!isAdmin) query = query.eq('is_published', true)
       if (activeTag) query = query.contains('tags', [activeTag])
 
       const { data } = await query
@@ -67,6 +75,11 @@ export default function BlogList() {
 
       {loading ? (
         <div className="text-white/40 text-sm">加载中...</div>
+      ) : !isAdmin ? (
+        <div className="liquid-glass rounded-3xl p-20 text-center">
+          <span className="text-4xl block mb-4 opacity-30">🔒</span>
+          <p className="text-white/30 text-sm">仅管理员可访问</p>
+        </div>
       ) : posts.length === 0 ? (
         <div className="liquid-glass rounded-3xl p-20 text-center text-white/40">
           暂无文章

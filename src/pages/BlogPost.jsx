@@ -25,9 +25,9 @@ export default function BlogPost() {
       const admin = session?.user?.email === ADMIN_EMAIL
       setIsAdmin(admin)
 
-      let query = supabase.from('posts').select('*').eq('slug', slug)
-      if (!admin) query = query.eq('is_published', true)
-      const { data } = await query.single()
+      if (!admin) { setLoading(false); return }
+
+      const { data } = await supabase.from('posts').select('*').eq('slug', slug).single()
 
       if (data) {
         setPost(data)
@@ -44,6 +44,12 @@ export default function BlogPost() {
   }
 
   if (loading) return <div className="py-12 text-white/40 text-sm">加载中...</div>
+  if (!isAdmin) return (
+    <div className="py-12 liquid-glass rounded-3xl p-20 text-center">
+      <span className="text-4xl block mb-4 opacity-30">🔒</span>
+      <p className="text-white/30 text-sm">仅管理员可访问</p>
+    </div>
+  )
   if (!post) return (
     <div className="py-12 liquid-glass rounded-3xl p-20 text-center text-white/40">
       文章不存在

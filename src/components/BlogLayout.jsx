@@ -8,11 +8,11 @@ import MusicPlayer from './MusicPlayer.jsx'
 const navLinks = [
   { to: '/', label: '首页' },
   { to: '/about', label: '关于' },
-  { to: '/gallery', label: '画廊' },
+  { to: '/gallery', label: '图片' },
   { to: '/guestbook', label: '留言板' },
-  { to: '/plans', label: '计划' },
-  { to: '/reading', label: '读书' },
-  { to: '/blog', label: '我的文档' },
+  { to: '/plans', label: '计划', adminOnly: true },
+  { to: '/reading', label: '读书', adminOnly: true },
+  { to: '/blog', label: '我的文档', adminOnly: true },
 ]
 
 export default function BlogLayout() {
@@ -67,7 +67,7 @@ export default function BlogLayout() {
 
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-8">
-          {navLinks.map(l => (
+          {navLinks.filter(l => !l.adminOnly || user?.email === ADMIN_EMAIL).map(l => (
             <Link key={l.to} to={l.to}
               className={`text-sm transition-colors ${location.pathname === l.to ? 'text-white font-medium' : 'text-white/60 hover:text-white'}`}>
               {l.label}
@@ -110,7 +110,7 @@ export default function BlogLayout() {
 
       {mobileOpen && (
         <div className="md:hidden flex flex-col gap-4 pb-6">
-          {navLinks.map(l => (
+          {navLinks.filter(l => !l.adminOnly || user?.email === ADMIN_EMAIL).map(l => (
             <Link key={l.to} to={l.to} onClick={() => setMobileOpen(false)}
               className={`text-sm ${location.pathname === l.to ? 'text-white font-medium' : 'text-white/60'}`}>
               {l.label}

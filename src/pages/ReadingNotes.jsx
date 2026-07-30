@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { ADMIN_EMAIL } from '../lib/constants'
 import {
   BookOpen, Plus, Trash2, Edit3, Star, X, Clock, Calendar,
   CheckCircle2, Bookmark, Library, Search
@@ -40,6 +41,7 @@ function Stars({ rating, onRate, interactive = false }) {
 export default function ReadingNotes() {
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingNote, setEditingNote] = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
@@ -47,7 +49,9 @@ export default function ReadingNotes() {
 
   const fetchNotes = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.user) { setNotes([]); setLoading(false); return }
+    const admin = session?.user?.email === ADMIN_EMAIL
+    setIsAdmin(admin)
+    if (!admin) { setNotes([]); setLoading(false); return }
 
     const { data } = await supabase
       .from('reading_notes')
@@ -162,6 +166,11 @@ export default function ReadingNotes() {
       {/* Content */}
       {loading ? (
         <div className="text-white/40 text-sm text-center py-20">加载中...</div>
+      ) : !isAdmin ? (
+        <div className="liquid-glass rounded-3xl p-20 text-center">
+          <span className="text-4xl block mb-4 opacity-30">🔒</span>
+          <p className="text-white/30 text-sm">仅管理员可访问</p>
+        </div>
       ) : filteredNotes.length === 0 ? (
         <div className="liquid-glass rounded-3xl p-20 text-center">
           <BookOpen size={40} className="text-white/15 mx-auto mb-4" />

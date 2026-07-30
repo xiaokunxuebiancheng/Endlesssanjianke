@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { ADMIN_EMAIL } from '../lib/constants'
 import { ChevronDown, Plus, Trash2, Save } from 'lucide-react'
 
 // ====== helpers ======
@@ -348,8 +349,8 @@ export default function Plans() {
 
     // 2. Try Supabase as backup source
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.user) {
-      if (!localRaw) setData(JSON.parse(JSON.stringify(DEFAULT_DATA)))
+    if (!session?.user || session.user.email !== ADMIN_EMAIL) {
+      setData(null)
       setLoading(false)
       return
     }
@@ -480,8 +481,8 @@ export default function Plans() {
         <div className="text-white/30 text-sm text-center py-20">加载中...</div>
       ) : !data ? (
         <div className="liquid-glass rounded-3xl p-20 text-center">
-          <span className="text-4xl block mb-4 opacity-30">📅</span>
-          <p className="text-white/30 text-sm">请先登录后查看计划</p>
+          <span className="text-4xl block mb-4 opacity-30">🔒</span>
+          <p className="text-white/30 text-sm">仅管理员可访问</p>
         </div>
       ) : (
         <div className="space-y-5">
