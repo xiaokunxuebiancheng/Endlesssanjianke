@@ -380,15 +380,26 @@ export default function Plans() {
     const key = monthRef.current
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) return
-      // Delete old rows first, then insert fresh one (avoid upsert dependency on unique constraint)
-      await supabase.from('monthly_plan_data').delete().eq('user_id', session.user.id).eq('month_key', key)
-      await supabase.from('monthly_plan_data').insert({
-        user_id: session.user.id,
-        month_key: key,
-        data: toSave,
-        updated_at: new Date().toISOString(),
-      })
+      if (!session?.user) {
+        setSaveStatus('未登录，无法云端同步')
+        return
+      }
+      // Check if row exists for this user+month
+      const { data: rows } = await supabase
+        .from('monthly_plan_data')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .eq('month_key', key)
+      if (rows && rows.length > 0) {
+        // Update existing row
+        await supabase.from('monthly_plan_data')
+          .update({ data: toSave, updated_at: new Date().toISOString() })
+          .eq('id', rows[0].id)
+      } else {
+        // Insert new row
+        await supabase.from('monthly_plan_data')
+          .insert({ user_id: session.user.id, month_key: key, data: toSave, updated_at: new Date().toISOString() })
+      }
       const now = new Date()
       setSaveStatus(`已同步 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
     } catch (err) {
@@ -443,7 +454,7 @@ export default function Plans() {
           <span className="text-sm text-white/30">月度计划</span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-[11px] text-white/25">{saveStatus || '已保存'}</span>
+          <span className={`text-[11px] ${saveStatus.includes('失败') || saveStatus.includes('未登录') ? 'text-red-400' : 'text-white/25'}`}>{saveStatus || '已保存'}</span>
           <button
             onClick={() => { if (syncTimer.current) clearTimeout(syncTimer.current); save(data); syncToSupabase() }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 text-white text-sm hover:bg-white/20 transition-colors"
